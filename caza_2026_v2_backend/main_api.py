@@ -110,6 +110,7 @@ origins = [
     "http://127.0.0.1:3000",
     "http://localhost:3001",  # React app new port
     "http://127.0.0.1:3001",
+    "https://caza2026-frontend.onrender.com", # Production frontend
 ]
 
 app.add_middleware(
