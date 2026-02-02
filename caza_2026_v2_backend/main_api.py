@@ -9,7 +9,7 @@ import mercadopago # Import Mercado Pago SDK
 from pydantic import BaseModel # Import BaseModel for Pydantic models
 
 # Import your existing service files
-from .sheets_services import read_sheet_data, append_sheet_data, update_payment_status, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME
+from .sheets_services import read_sheet_data, append_sheet_data, update_payment_status, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME
 from .drive_services import list_pdfs_in_folder, GOOGLE_DRIVE_FOLDER_ID
 from .email_services import send_simple_email # Importa la función de envío de correos
 
