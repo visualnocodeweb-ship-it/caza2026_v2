@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchInscripciones, linkData, createPaymentPreference, sendEmailAPI } from '../utils/api';
+import { fetchInscripciones, linkData, sendEmailAPI, sendPaymentLink } from '../utils/api'; // Import sendPaymentLink
 import '../styles/App.css'; // Import global styles
 
 const RECORDS_PER_PAGE = 10; // Constante para la paginación
@@ -13,6 +13,7 @@ const Inscripciones = () => {
   const [linkingData, setLinkingData] = useState(false); // New state for linking data
   const [linkingError, setLinkingError] = useState(null); // New state for linking error
   const [sendingEmail, setSendingEmail] = useState({}); // To manage loading state per email
+  const [sendingPayment, setSendingPayment] = useState({}); // New state for payment sending
   // Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -108,10 +109,25 @@ const Inscripciones = () => {
     }
   };
 
-  const handleSendPayment = async (inscripcion) => {
-    // Temporarily disabled until Mercado Pago credentials are ready
-    alert('Funcionalidad de "Enviar Cobro" deshabilitada temporalmente. Por favor, configure las credenciales de Mercado Pago.');
-    return;
+  const handleSendPayment = async (inscripcion, index) => {
+    if (!inscripcion.email || !inscripcion.numero_inscripcion || !inscripcion.nombre_establecimiento) {
+      alert('Faltan datos esenciales (email, ID de inscripción o nombre) para enviar el cobro.');
+      return;
+    }
+
+    setSendingPayment(prev => ({ ...prev, [index]: true }));
+    try {
+      await sendPaymentLink({
+        inscription_id: inscripcion.numero_inscripcion,
+        email: inscripcion.email,
+        nombre_establecimiento: inscripcion.nombre_establecimiento,
+      });
+      alert(`Email de cobro enviado a ${inscripcion.email} con éxito.`);
+    } catch (err) {
+      alert(`Error al enviar el email de cobro: ${err.message}`);
+    } finally {
+      setSendingPayment(prev => ({ ...prev, [index]: false }));
+    }
   };
 
   // Lógica de filtrado
@@ -175,6 +191,7 @@ const Inscripciones = () => {
                   <p><strong>Email:</strong> {inscripcion.email || 'N/A'}</p>
                   <p><strong>Celular:</strong> {inscripcion.celular || 'N/A'}</p>
                   <p><strong>Fecha:</strong> {inscripcion.Fecha || 'N/A'}</p>
+                  <p><strong>Estado del Pago:</strong> <span style={{ fontWeight: 'bold', color: inscripcion['Estado de Pago'] === 'Pagado' ? 'green' : 'orange' }}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
                   <div style={{ marginTop: '10px' }}>
                     {inscripcion.pdf_link && (
                       <a href={inscripcion.pdf_link} target="_blank" rel="noopener noreferrer" className="pdf-link-button">
@@ -204,22 +221,22 @@ const Inscripciones = () => {
                     {inscripcion.email && (
                       <>
                         <button
-                          onClick={() => handleSendPayment(inscripcion)}
-                          disabled={true} // Temporarily disabled until Mercado Pago credentials are ready
+                          onClick={() => handleSendPayment(inscripcion, index)}
+                          disabled={sendingPayment[index] || inscripcion['Estado de Pago'] === 'Pagado'}
                           style={{
                             marginLeft: '10px',
                             padding: '8px 15px',
                             fontSize: '0.9em',
                             fontWeight: 'bold',
-                            backgroundColor: '#CCCCCC', // Disabled color
+                            backgroundColor: (sendingPayment[index] || inscripcion['Estado de Pago'] === 'Pagado') ? '#CCCCCC' : '#009ee3',
                             color: 'white',
                             border: 'none',
                             borderRadius: '5px',
-                            cursor: 'not-allowed',
+                            cursor: (sendingPayment[index] || inscripcion['Estado de Pago'] === 'Pagado') ? 'not-allowed' : 'pointer',
                             transition: 'background-color 0.3s ease',
                           }}
                         >
-                          Enviar Cobro
+                          {sendingPayment[index] ? 'Enviando Cobro...' : (inscripcion['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro')}
                         </button>
                       </>
                     )}

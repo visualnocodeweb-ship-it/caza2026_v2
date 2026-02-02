@@ -130,3 +130,24 @@ export const sendEmailAPI = async (emailData) => {
   }
 };
 
+export const sendPaymentLink = async (paymentLinkData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/send-payment-link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(paymentLinkData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error sending payment link:", error);
+    throw error;
+  }
+};
+
