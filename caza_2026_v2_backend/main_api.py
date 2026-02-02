@@ -189,9 +189,22 @@ async def internal_create_payment_preference(payment_request: PaymentRequest):
         "notification_url": "https://caza2026-1.onrender.com/api/mercadopago-webhook",
         "auto_return": "approved",
     }
+    
+    print(f"DEBUG: Enviando datos de preferencia a Mercado Pago: {preference_data}")
     preference_response = mp_sdk.preference().create(preference_data)
+    print(f"DEBUG: Respuesta de la preferencia de Mercado Pago: {preference_response}")
+
+    if not preference_response or "response" not in preference_response:
+        raise ValueError("Respuesta inválida de Mercado Pago al crear la preferencia.")
+
     preference = preference_response["response"]
-    return preference["init_point"] if "init_point" in preference else preference.get("sandbox_init_point")
+    payment_link = preference.get("init_point") or preference.get("sandbox_init_point")
+
+    if not payment_link:
+        print(f"ERROR: No se pudo obtener 'init_point' o 'sandbox_init_point' de la respuesta: {preference}")
+        raise ValueError("No se pudo generar el link de pago desde Mercado Pago.")
+
+    return payment_link
 
 @app.post("/api/send-payment-link")
 async def send_payment_link(request: SendPaymentLinkRequest):
