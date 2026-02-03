@@ -250,12 +250,23 @@ async def send_payment_link(request: SendPaymentLinkRequest):
 
 @app.post("/api/mercadopago-webhook")
 async def mercadopago_webhook(request: Request):
-    body = await request.json()
-    topic = body.get("topic")
-    payment_id = body.get("data", {}).get("id")
+    query_params = request.query_params
+    
+    # Intenta obtener datos de los parámetros de la URL primero (formato más común)
+    topic = query_params.get("topic") or query_params.get("type")
+    payment_id = query_params.get("data.id") or query_params.get("id")
+
+    # Si no están en la URL, intenta obtenerlos del cuerpo JSON (para futuras versiones o APIs)
+    if not topic or not payment_id:
+        try:
+            body = await request.json()
+            topic = body.get("topic") or body.get("type")
+            payment_id = body.get("data", {}).get("id")
+        except Exception:
+            pass # Ignorar errores si el cuerpo no es JSON
 
     if topic == "payment" and payment_id:
-        print(f"INFO: Notificación de pago recibida para ID: {payment_id}")
+        print(f"INFO: Notificación de pago recibida para ID: {payment_id} (Tópico: {topic})")
         try:
             if not mp_sdk_initialized:
                 print("ERROR: Webhook recibido pero Mercado Pago SDK no está inicializado.")
