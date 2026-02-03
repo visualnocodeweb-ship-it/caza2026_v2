@@ -45,6 +45,20 @@ export const fetchPrices = async () => {
   }
 };
 
+export const fetchPayments = async (page = 1, limit = 10) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/pagos?page=${page}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+  }
+};
+
 // Add more API functions as needed
 
 export const linkData = async () => {

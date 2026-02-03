@@ -14,6 +14,9 @@ const Navbar = () => {
       <NavLink to="/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
         Dashboard
       </NavLink>
+      <NavLink to="/pagos" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}> {/* New NavLink */}
+        Pagos Realizados
+      </NavLink>
     </nav>
   );
 };

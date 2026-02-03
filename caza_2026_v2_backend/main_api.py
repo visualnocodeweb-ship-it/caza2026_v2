@@ -118,6 +118,43 @@ async def get_inscripciones(page: int = 1, limit: int = 10):
         print(f"ERROR al obtener inscripciones: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch inscripciones: {e}")
 
+@app.get("/api/pagos")
+async def get_pagos(page: int = 1, limit: int = 10):
+    # TODO: Implementar autenticación/autorización para proteger este endpoint en un entorno de producción.
+    # Expone todos los datos de pago, lo cual no es seguro sin protección.
+    
+    max_limit = 100 # Definir un límite máximo razonable para evitar cargas excesivas
+    if limit > max_limit:
+        limit = max_limit # Ajustar el límite si excede el máximo permitido
+
+    try:
+        # Calcular el offset para la paginación
+        offset = (page - 1) * limit
+
+        # Construir la consulta para seleccionar todos los pagos, ordenados por fecha de creación descendente
+        query = pagos.select().order_by(pagos.c.date_created.desc()).offset(offset).limit(limit)
+        
+        # Ejecutar la consulta y obtener los pagos
+        fetched_pagos = await database.fetch_all(query)
+
+        # Contar el total de registros para la paginación
+        total_records_query = sqlalchemy.select(sqlalchemy.func.count()).select_from(pagos)
+        total_records = await database.fetch_val(total_records_query)
+
+        # Convertir los resultados a una lista de diccionarios para la respuesta
+        pagos_data = [dict(p) for p in fetched_pagos]
+
+        return {
+            "data": pagos_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_records + limit - 1) // limit
+        }
+    except Exception as e:
+        print(f"ERROR al obtener pagos: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch payments: {e}")
+
 @app.post("/api/send-payment-link")
 async def send_payment_link(request: SendPaymentLinkRequest):
     # (Esta función no necesita cambios, ya que su lógica interna sigue siendo válida)
