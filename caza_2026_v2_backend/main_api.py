@@ -203,6 +203,12 @@ async def mercadopago_webhook(request: Request):
                     # Si no hay fecha, usar la hora actual en UTC.
                     parsed_date = datetime.datetime.now(datetime.timezone.utc)
 
+                # La fecha `parsed_date` ya se ha asegurado que es consciente de la zona horaria (UTC).
+                # Si el error "can't subtract offset-naive and offset-aware datetimes" persiste,
+                # es probable que la columna `date_created` en la base de datos no sea
+                # `TIMESTAMP WITH TIME ZONE` (o su equivalente) o que contenga datos antiguos "naive".
+                # Para una solución definitiva, sería necesaria una migración de la base de datos
+                # para alterar el tipo de columna a `TIMESTAMP WITH TIME ZONE` y convertir los datos existentes.
                 values = {
                     "payment_id": payment.get('id'),
                     "inscription_id": payment.get('external_reference'),
@@ -210,7 +216,7 @@ async def mercadopago_webhook(request: Request):
                     "status_detail": payment.get('status_detail'),
                     "amount": payment.get('transaction_amount'),
                     "email": payment.get('payer', {}).get('email'),
-                    "date_created": parsed_date
+                    "date_created": parsed_date # Usar la fecha consciente de la zona horaria
                 }
                 
                 # 'Upsert': Inserta una nueva fila. Si ya existe un pago con el mismo payment_id,
