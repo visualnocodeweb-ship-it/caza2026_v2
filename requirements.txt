@@ -9,3 +9,7 @@ mercadopago
 resend
 gunicorn
 python-multipart
+sqlalchemy
+psycopg2-binary
+asyncpg
+databases[postgresql]
