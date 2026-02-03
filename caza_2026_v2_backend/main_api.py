@@ -265,30 +265,48 @@ async def mercadopago_webhook(request: Request):
             payment_info = mp_sdk.payment().get(payment_id)
             payment = payment_info.get("response")
 
-            if payment and payment.get("status") == "approved":
-                inscription_id = payment.get("external_reference")
-                if inscription_id:
-                    print(f"INFO: Pago aprobado para inscripción ID: {inscription_id}. Actualizando hoja de cálculo.")
-                    update_payment_status(
-                        sheet_id=MAIN_SHEET_ID,
-                        sheet_name=MAIN_SHEET_NAME,
-                        inscription_id=inscription_id,
-                        new_status="Pagado"
-                    )
-                    # Forzar la invalidación del caché después de una actualización
-                    global _cached_sheet_data, _cache_timestamp
-                    _cached_sheet_data = None
-                    _cache_timestamp = None
-                    print(f"INFO: Caché invalidado por actualización de pago.")
+            if payment:
+                # Log every payment attempt to the 'pagos' sheet
+                try:
+                    log_entry = [
+                        payment.get('date_created', datetime.datetime.now().isoformat()),
+                        payment.get('id'),
+                        payment.get('external_reference'),
+                        payment.get('payer', {}).get('email'),
+                        payment.get('transaction_amount'),
+                        payment.get('status'),
+                        payment.get('status_detail')
+                    ]
+                    append_sheet_data(PAGOS_SHEET_ID, PAGOS_SHEET_NAME, [log_entry])
+                    print(f"INFO: Intento de pago ID {payment_id} registrado en la hoja 'pagos'.")
+                except Exception as log_e:
+                    print(f"ERROR: No se pudo registrar el intento de pago en la hoja 'pagos': {log_e}")
+
+                # If approved, also update the main sheet status
+                if payment.get("status") == "approved":
+                    inscription_id = payment.get("external_reference")
+                    if inscription_id:
+                        print(f"INFO: Pago aprobado para inscripción ID: {inscription_id}. Actualizando hoja de cálculo.")
+                        update_payment_status(
+                            sheet_id=MAIN_SHEET_ID,
+                            sheet_name=MAIN_SHEET_NAME,
+                            inscription_id=inscription_id,
+                            new_status="Pagado"
+                        )
+                        # Forzar la invalidación del caché después de una actualización
+                        global _cached_sheet_data, _cache_timestamp
+                        _cached_sheet_data = None
+                        _cache_timestamp = None
+                        print(f"INFO: Caché invalidado por actualización de pago.")
+                    else:
+                        print("WARNING: Pago aprobado pero sin 'external_reference'. No se puede actualizar la hoja.")
                 else:
-                    print("WARNING: Pago aprobado pero sin 'external_reference'. No se puede actualizar la hoja.")
+                    print(f"INFO: Estado del pago no aprobado: {payment.get('status')}")
             else:
-                print(f"INFO: Estado del pago no aprobado: {payment.get('status') if payment else 'N/A'}")
+                 print(f"WARNING: No se pudo obtener información detallada para el ID de pago: {payment_id}")
 
         except Exception as e:
             print(f"ERROR: Error al procesar el webhook de Mercado Pago: {e}")
-            # No lanzar HTTPException aquí para evitar que MP reintente indefinidamente por errores de procesamiento.
-            # Simplemente loguear el error.
             return {"status": "error", "message": "Internal server error"}
             
     return {"status": "notification received"}
