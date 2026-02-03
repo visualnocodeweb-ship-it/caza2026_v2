@@ -192,7 +192,6 @@ async def internal_create_payment_preference(payment_request: PaymentRequest):
             "pending": "https://caza2026-frontend.onrender.com/inscripciones"
         },
         "notification_url": "https://caza2026-1.onrender.com/api/mercadopago-webhook",
-        "auto_return": "approved",
     }
     
     print(f"DEBUG: Enviando datos de preferencia a Mercado Pago: {preference_data}")
