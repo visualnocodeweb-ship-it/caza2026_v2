@@ -1,6 +1,6 @@
 import sqlalchemy
 from .database import metadata
-import datetime
+from datetime import datetime, timezone
 
 pagos = sqlalchemy.Table(
     "pagos",
@@ -12,5 +12,5 @@ pagos = sqlalchemy.Table(
     sqlalchemy.Column("status_detail", sqlalchemy.String),
     sqlalchemy.Column("amount", sqlalchemy.Float),
     sqlalchemy.Column("email", sqlalchemy.String),
-    sqlalchemy.Column("date_created", sqlalchemy.DateTime, default=datetime.datetime.utcnow),
+    sqlalchemy.Column("date_created", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
 )
