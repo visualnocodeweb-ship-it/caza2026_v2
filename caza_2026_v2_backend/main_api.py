@@ -193,7 +193,15 @@ async def mercadopago_webhook(request: Request):
             if payment:
                 # --- NUEVA LÓGICA: Guardar en PostgreSQL ---
                 date_str = payment.get('date_created')
-                parsed_date = parser.isoparse(date_str) if date_str else datetime.datetime.utcnow()
+                # Asegurar que la fecha sea siempre timezone-aware (consciente de la zona horaria)
+                if date_str:
+                    parsed_date = parser.isoparse(date_str)
+                    # Si la fecha parseada es "naive" (sin zona horaria), se asume que es UTC.
+                    if parsed_date.tzinfo is None:
+                        parsed_date = parsed_date.replace(tzinfo=datetime.timezone.utc)
+                else:
+                    # Si no hay fecha, usar la hora actual en UTC.
+                    parsed_date = datetime.datetime.now(datetime.timezone.utc)
 
                 values = {
                     "payment_id": payment.get('id'),
