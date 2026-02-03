@@ -186,6 +186,11 @@ async def internal_create_payment_preference(payment_request: PaymentRequest):
         "items": [{"title": payment_request.item_title, "quantity": 1, "unit_price": fixed_price}],
         "payer": {"email": payment_request.email},
         "external_reference": payment_request.inscription_id,
+        "back_urls": {
+            "success": "https://caza2026-frontend.onrender.com/inscripciones",
+            "failure": "https://caza2026-frontend.onrender.com/inscripciones",
+            "pending": "https://caza2026-frontend.onrender.com/inscripciones"
+        },
         "notification_url": "https://caza2026-1.onrender.com/api/mercadopago-webhook",
         "auto_return": "approved",
     }
