@@ -8,6 +8,7 @@ import mercadopago
 from pydantic import BaseModel
 from sqlalchemy.dialects.postgresql import insert
 from dateutil import parser # Importar el parser de fechas
+from sqlalchemy import select, func # <-- NUEVA IMPORTACIÓN
 
 # --- Nuevas importaciones de base de datos ---
 from .database import database, engine, metadata
@@ -138,7 +139,7 @@ async def get_pagos(page: int = 1, limit: int = 10):
         fetched_pagos = await database.fetch_all(query)
 
         # Contar el total de registros para la paginación
-        total_records_query = sqlalchemy.select(sqlalchemy.func.count()).select_from(pagos)
+        total_records_query = select(func.count()).select_from(pagos) # <-- CAMBIO A select y func.count
         total_records = await database.fetch_val(total_records_query)
 
         # Convertir los resultados a una lista de diccionarios para la respuesta
