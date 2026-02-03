@@ -7,6 +7,7 @@ import pandas as pd
 import mercadopago
 from pydantic import BaseModel
 from sqlalchemy.dialects.postgresql import insert
+from dateutil import parser # Importar el parser de fechas
 
 # --- Nuevas importaciones de base de datos ---
 from .database import database, engine, metadata
@@ -191,6 +192,9 @@ async def mercadopago_webhook(request: Request):
 
             if payment:
                 # --- NUEVA LÓGICA: Guardar en PostgreSQL ---
+                date_str = payment.get('date_created')
+                parsed_date = parser.isoparse(date_str) if date_str else datetime.datetime.utcnow()
+
                 values = {
                     "payment_id": payment.get('id'),
                     "inscription_id": payment.get('external_reference'),
@@ -198,7 +202,7 @@ async def mercadopago_webhook(request: Request):
                     "status_detail": payment.get('status_detail'),
                     "amount": payment.get('transaction_amount'),
                     "email": payment.get('payer', {}).get('email'),
-                    "date_created": payment.get('date_created')
+                    "date_created": parsed_date
                 }
                 
                 # 'Upsert': Inserta una nueva fila. Si ya existe un pago con el mismo payment_id,
