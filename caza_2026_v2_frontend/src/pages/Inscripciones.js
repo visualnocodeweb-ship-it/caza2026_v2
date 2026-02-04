@@ -130,6 +130,16 @@ const Inscripciones = () => {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    // Ensure the date is valid before formatting
+    if (isNaN(date.getTime())) {
+      return 'Fecha inválida';
+    }
+    return date.toLocaleString(); // Formats date and time based on locale
+  };
+
   // Lógica de filtrado
   const filteredInscripciones = inscripciones.filter(inscripcion =>
     (inscripcion.nombre_establecimiento && inscripcion.nombre_establecimiento.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -190,7 +200,7 @@ const Inscripciones = () => {
                 <div className="card-details">
                   <p><strong>Email:</strong> {inscripcion.email || 'N/A'}</p>
                   <p><strong>Celular:</strong> {inscripcion.celular || 'N/A'}</p>
-                  <p><strong>Fecha:</strong> {inscripcion.Fecha || 'N/A'}</p>
+                  <p><strong>Fecha:</strong> {formatDate(inscripcion.fecha_creacion)}</p>
                   <p><strong>Estado del Pago:</strong> <span style={{ fontWeight: 'bold', color: inscripcion['Estado de Pago'] === 'Pagado' ? 'green' : 'orange' }}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
                   <div style={{ marginTop: '10px' }}>
                     {inscripcion.pdf_link && (

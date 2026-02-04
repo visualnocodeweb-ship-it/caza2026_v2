@@ -1,6 +1,5 @@
 import React from 'react';
 import Navbar from './Navbar';
-import DevSection from './DevSection'; // Import the DevSection component
 import GuardafaunaLogo from '../assets/Guardafauna - 1.png'; // Corrected path to the image
 import '../styles/App.css'; // Import global styles
 
@@ -18,8 +17,6 @@ const Layout = ({ children }) => {
         {children}
       </main>
       <footer className="app-footer">
-        {/* The DevSection button will be rendered here, and the section itself will appear below */}
-        <DevSection />
       </footer>
     </div>
   );
