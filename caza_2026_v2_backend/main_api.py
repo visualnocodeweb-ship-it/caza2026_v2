@@ -119,6 +119,14 @@ async def get_inscripciones(page: int = 1, limit: int = 10):
         print(f"ERROR al obtener inscripciones: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch inscripciones: {e}")
 
+@app.post("/api/link-data")
+async def link_data():
+    # Este endpoint actualmente solo sirve para confirmar que la acción fue "disparada"
+    # desde el frontend. La lógica de vinculación de datos ya está en get_inscripciones,
+    # y el frontend refresca los datos después de llamar a este endpoint.
+    # A futuro, aquí se podría implementar una lógica más compleja si es necesario.
+    return {"status": "success", "message": "Data linking process triggered."}
+
 @app.get("/api/pagos")
 async def get_pagos(page: int = 1, limit: int = 10):
     # TODO: Implementar autenticación/autorización para proteger este endpoint en un entorno de producción.
@@ -164,8 +172,12 @@ async def send_payment_link(request: SendPaymentLinkRequest):
         if not mp_sdk_initialized:
             raise HTTPException(status_code=503, detail="Mercado Pago no está configurado.")
     
-        fixed_price = get_sheets_service().spreadsheets().values().get(spreadsheetId=PRICES_SHEET_ID, range=f"'{PRICES_SHEET_NAME}'!B2").execute().get('values', [['0']])[0][0]
-        fixed_price = float(fixed_price)
+        fixed_price_str = get_sheets_service().spreadsheets().values().get(spreadsheetId=PRICES_SHEET_ID, range=f"'{PRICES_SHEET_NAME}'!B2").execute().get('values', [['0']])[0][0]
+        
+        # Limpiar el string del precio antes de convertirlo a float
+        cleaned_price_str = fixed_price_str.replace('$', '').replace(',', '').strip()
+        fixed_price = float(cleaned_price_str)
+
         if fixed_price <= 0:
             raise ValueError("Precio de pago no válido.")
 
