@@ -173,10 +173,10 @@ const PagosRealizados = () => {
           Pagos Realizados
         </button>
         <button onClick={() => setView('enviados')} className={view === 'enviados' ? 'active' : ''}>
-          Cobros Enviados
+          Inscripciones
         </button>
       </div>
-      <h1 className="title">{view === 'realizados' ? 'Pagos Realizados' : 'Cobros Enviados'}</h1>
+      <h1 className="title">{view === 'realizados' ? 'Pagos Realizados' : 'Inscripciones (Cobros Enviados)'}</h1>
       {view === 'realizados' ? renderPaymentsTable() : renderCobrosTable()}
     </div>
   );
