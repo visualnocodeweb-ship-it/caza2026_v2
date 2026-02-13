@@ -1,39 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { fetchTotalInscripciones } from '../utils/api';
+import { Link, Outlet, NavLink } from 'react-router-dom';
+// import '../../styles/App.css'; // Esto ya se carga globalmente en App.js
 
 const Dashboard = () => {
-  const [totalInscripciones, setTotalInscripciones] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const getStats = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchTotalInscripciones();
-        setTotalInscripciones(data.total_inscripciones);
-      } catch (error) {
-        console.error("Error al cargar estadísticas:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getStats();
-  }, []);
-
   return (
     <div>
       <h2>Dashboard</h2>
-      <div className="stat-card-container">
-        <div className="stat-card">
-          <div className="stat-card-number">{loading ? '...' : totalInscripciones}</div>
-          <div className="stat-card-label">Inscripciones Totales</div>
-          <Link to="/inscripciones" className="stat-card-link">
-            Ir a Inscripciones
-          </Link>
-        </div>
-        {/* Aquí se podrían agregar más tarjetas de estadísticas en el futuro */}
+      <nav className="dashboard-subnav">
+        <NavLink 
+          to="/dashboard/inscripciones" 
+          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
+        >
+          Inscripciones
+        </NavLink>
+        {/* Futuras pestañas del dashboard irán aquí */}
+        {/* 
+        <NavLink 
+          to="/dashboard/pagos" 
+          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
+        >
+          Pagos
+        </NavLink> 
+        */}
+      </nav>
+      <div className="dashboard-content">
+        <Outlet />
       </div>
     </div>
   );
