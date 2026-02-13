@@ -1,3 +1,4 @@
+from fastapi.responses import HTMLResponse
 import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,6 +70,14 @@ class SendPaymentLinkRequest(BaseModel):
     email: str
     nombre_establecimiento: str
     tipo_establecimiento: str # Nuevo campo
+
+class SendCredentialRequest(BaseModel):
+    numero_inscripcion: str
+    nombre_establecimiento: str
+    razon_social: str
+    cuit: str
+    tipo_establecimiento: str
+    email: str
 
 # --- CORS ---
 origins = [
@@ -261,6 +270,91 @@ async def send_payment_link(request: SendPaymentLinkRequest):
     except Exception as e:
         logging.error(f"Error al procesar envío de pago: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al procesar el envío de pago: {e}")
+
+@app.post("/api/send-credential")
+async def send_credential(request: SendCredentialRequest):
+    try:
+        email_subject = f"Credencial de Caza 2026 para {request.nombre_establecimiento}"
+        
+        # Obtener la fecha actual y formatearla
+        current_date = datetime.datetime.now().strftime("%d/%m/%Y")
+
+        email_html = f"""
+            <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+                <h2>CREDENCIAL DE CAZA 2026 - Inscripción de Establecimientos</h2>
+                <p><strong>Número de inscripción:</strong> {request.numero_inscripcion}</p>
+                <p>Se otorga la presente credencial a:</p>
+                <p><strong>Establecimiento:</strong> {request.nombre_establecimiento}</p>
+                <p><strong>Razón Social:</strong> {request.razon_social}</p>
+                <p><strong>CUIT:</strong> {request.cuit}</p>
+                <p>Esta credencial autoriza la actividad de caza en <strong>{request.tipo_establecimiento}</strong> para la temporada 2026.</p>
+                <p><strong>Fecha de Emisión:</strong> {current_date}</p>
+                <br>
+                <p>Atentamente,</p>
+                <p><strong>Dirección de Fauna de la Provincia de Neuquén.</strong></p>
+            </div>
+        """
+        
+        send_simple_email(
+            to_email=request.email,
+            subject=email_subject,
+            html_content=email_html,
+            sender_email=SENDER_EMAIL_RESEND
+        )
+        
+        logging.info(f"Credencial enviada a {request.email} para el establecimiento {request.nombre_establecimiento}.")
+        return {"status": "success", "message": "Credencial enviada con éxito."}
+
+    except Exception as e:
+        logging.error(f"Error al enviar la credencial: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al enviar la credencial: {e}")
+
+@app.get("/api/view-credential/{numero_inscripcion}", response_class=HTMLResponse)
+async def view_credential(numero_inscripcion: str):
+    try:
+        inscripciones_df = read_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
+        
+        # Buscar la inscripción por su número
+        inscripcion_row = inscripciones_df[inscripciones_df['numero_inscripcion'] == numero_inscripcion]
+        
+        if inscripcion_row.empty:
+            raise HTTPException(status_code=404, detail="Inscripción no encontrada.")
+            
+        inscripcion = inscripcion_row.iloc[0]
+        
+        current_date = datetime.datetime.now().strftime("%d/%m/%Y")
+
+        html_content = f"""
+            <html>
+                <head>
+                    <title>Credencial de Caza 2026 - {inscripcion.get('nombre_establecimiento', '')}</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
+                        h2 {{ border-bottom: 1px solid #ccc; padding-bottom: 10px; }}
+                        strong {{ color: #333; }}
+                    </style>
+                </head>
+                <body>
+                    <h2>CREDENCIAL DE CAZA 2026 - Inscripción de Establecimientos</h2>
+                    <p><strong>Número de inscripción:</strong> {inscripcion.get('numero_inscripcion', 'N/A')}</p>
+                    <p>Se otorga la presente credencial a:</p>
+                    <p><strong>Establecimiento:</strong> {inscripcion.get('nombre_establecimiento', 'N/A')}</p>
+                    <p><strong>Razón Social:</strong> {inscripcion.get('razon_social', 'N/A')}</p>
+                    <p><strong>CUIT:</strong> {inscripcion.get('cuit', 'N/A')}</p>
+                    <p>Esta credencial autoriza la actividad de caza en <strong>{inscripcion.get('su establecimiento es', 'N/A')}</strong> para la temporada 2026.</p>
+                    <p><strong>Fecha de Emisión:</strong> {current_date}</p>
+                    <br>
+                    <p>Atentamente,</p>
+                    <p><strong>Dirección de Fauna de la Provincia de Neuquén.</strong></p>
+                </body>
+            </html>
+        """
+        return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        logging.error(f"Error al generar la vista de la credencial: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al generar la vista de la credencial: {e}")
+
 
 @app.post("/api/mercadopago-webhook")
 async def mercadopago_webhook(request: Request):

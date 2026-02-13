@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchInscripciones, linkData, sendEmailAPI, sendPaymentLink } from '../utils/api'; // Import sendPaymentLink
+import { fetchInscripciones, linkData, sendEmailAPI, sendPaymentLink, sendCredentialAPI, viewCredentialAPI } from '../utils/api'; // Import all APIs
 import '../styles/App.css'; // Import global styles
 import '../styles/Responsive.css'; // Import responsive styles
 
@@ -15,6 +15,8 @@ const Inscripciones = () => {
   const [linkingError, setLinkingError] = useState(null); // New state for linking error
   const [sendingEmail, setSendingEmail] = useState({}); // To manage loading state per email
   const [sendingPayment, setSendingPayment] = useState({}); // New state for payment sending
+  const [sendingCredential, setSendingCredential] = useState({}); // New state for credential sending
+  const [viewingCredential, setViewingCredential] = useState({}); // New state for viewing credential
   // Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -132,6 +134,49 @@ const Inscripciones = () => {
     }
   };
 
+  const handleSendCredential = async (inscripcion, index) => {
+    if (!inscripcion.email) {
+      alert('No hay dirección de correo para enviar la credencial.');
+      return;
+    }
+
+    setSendingCredential(prev => ({ ...prev, [index]: true }));
+    try {
+      await sendCredentialAPI({
+        numero_inscripcion: inscripcion.numero_inscripcion,
+        nombre_establecimiento: inscripcion.nombre_establecimiento,
+        razon_social: inscripcion.razon_social,
+        cuit: inscripcion.cuit,
+        tipo_establecimiento: inscripcion['su establecimiento es'],
+        email: inscripcion.email,
+      });
+      alert(`Credencial enviada a ${inscripcion.email} con éxito.`);
+    } catch (err) {
+      alert(`Error al enviar la credencial: ${err.message}`);
+    } finally {
+      setSendingCredential(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const handleViewCredential = async (inscripcion, index) => {
+    if (!inscripcion.numero_inscripcion) {
+      alert('No hay número de inscripción para ver la credencial.');
+      return;
+    }
+
+    setViewingCredential(prev => ({ ...prev, [index]: true }));
+    try {
+      const credentialHtml = await viewCredentialAPI(inscripcion.numero_inscripcion);
+      const newWindow = window.open();
+      newWindow.document.write(credentialHtml);
+      newWindow.document.close();
+    } catch (err) {
+      alert(`Error al ver la credencial: ${err.message}`);
+    } finally {
+      setViewingCredential(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -211,6 +256,24 @@ const Inscripciones = () => {
                         Ver PDF
                       </a>
                     )}
+                    <button
+                      onClick={() => handleViewCredential(inscripcion, index)}
+                      disabled={viewingCredential[index]}
+                      style={{
+                        marginLeft: '10px',
+                        padding: '8px 15px',
+                        fontSize: '0.9em',
+                        fontWeight: 'bold',
+                        backgroundColor: viewingCredential[index] ? '#CCCCCC' : '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        cursor: viewingCredential[index] ? 'not-allowed' : 'pointer',
+                        transition: 'background-color 0.3s ease',
+                      }}
+                    >
+                      {viewingCredential[index] ? 'Cargando...' : 'Ver Credencial'}
+                    </button>
                     {inscripcion.email && (
                       <button
                           onClick={() => handleSendEmail(inscripcion, index)}
@@ -250,6 +313,24 @@ const Inscripciones = () => {
                           }}
                         >
                           {sendingPayment[index] ? 'Enviando Cobro...' : (inscripcion['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro')}
+                        </button>
+                        <button
+                          onClick={() => handleSendCredential(inscripcion, index)}
+                          disabled={sendingCredential[index]}
+                          style={{
+                            marginLeft: '10px',
+                            padding: '8px 15px',
+                            fontSize: '0.9em',
+                            fontWeight: 'bold',
+                            backgroundColor: sendingCredential[index] ? '#CCCCCC' : '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '5px',
+                            cursor: sendingCredential[index] ? 'not-allowed' : 'pointer',
+                            transition: 'background-color 0.3s ease',
+                          }}
+                        >
+                          {sendingCredential[index] ? 'Enviando...' : 'Enviar Credencial'}
                         </button>
                       </>
                     )}

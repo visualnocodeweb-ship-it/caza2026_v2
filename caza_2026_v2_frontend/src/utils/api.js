@@ -165,6 +165,42 @@ export const sendPaymentLink = async (paymentLinkData) => {
   }
 };
 
+export const sendCredentialAPI = async (credentialData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/send-credential`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentialData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error sending credential:", error);
+    throw error;
+  }
+};
+
+export const viewCredentialAPI = async (numero_inscripcion) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/view-credential/${numero_inscripcion}`);
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(errorData || `HTTP error! status: ${response.status}`);
+    }
+    const html = await response.text();
+    return html;
+  } catch (error) {
+    console.error("Error viewing credential:", error);
+    throw error;
+  }
+};
+
 export const fetchCobrosEnviados = async (page = 1, limit = 10) => {
   try {
     const response = await fetch(`${API_BASE_URL}/cobros-enviados?page=${page}&limit=${limit}`);
