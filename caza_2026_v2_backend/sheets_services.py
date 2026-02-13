@@ -170,6 +170,7 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
         float: El precio correspondiente.
     """
     precios_df = read_sheet_data(sheet_id, sheet_name)
+    print(f"DEBUG: Columnas del DataFrame de precios: {precios_df.columns.tolist()}")
 
     if precios_df.empty:
         raise ValueError("No se pudieron leer los datos de la hoja de precios.")
