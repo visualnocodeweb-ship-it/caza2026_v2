@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchInscripciones, linkData, sendEmailAPI, sendPaymentLink } from '../utils/api'; // Import sendPaymentLink
 import '../styles/App.css'; // Import global styles
+import '../styles/Responsive.css'; // Import responsive styles
 
 const RECORDS_PER_PAGE = 10; // Constante para la paginación
 
@@ -121,6 +122,7 @@ const Inscripciones = () => {
         inscription_id: inscripcion.numero_inscripcion,
         email: inscripcion.email,
         nombre_establecimiento: inscripcion.nombre_establecimiento,
+        tipo_establecimiento: inscripcion['su establecimiento es'], // Add this line
       });
       alert(`Email de cobro enviado a ${inscripcion.email} con éxito.`);
     } catch (err) {

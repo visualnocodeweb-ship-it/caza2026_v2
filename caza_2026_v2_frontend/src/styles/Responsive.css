@@ -1,0 +1,71 @@
+/* src/styles/Responsive.css */
+
+/* Responsive table styles */
+.table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+@media (max-width: 768px) {
+    .payments-table th,
+    .payments-table td {
+        font-size: 0.8em; /* Smaller font for smaller screens */
+        padding: 6px; /* Adjust padding */
+    }
+
+    .pagination-controls {
+        flex-direction: column; /* Stack controls vertically */
+        gap: 10px;
+    }
+
+    .pagination-controls button {
+        width: 100%; /* Full-width buttons */
+        padding: 10px;
+    }
+
+    .view-toggle {
+        flex-direction: column; /* Stack toggle buttons */
+        gap: 8px;
+    }
+
+    .view-toggle button {
+        width: 100%;
+    }
+
+    .container {
+        padding: 10px;
+        margin: 10px auto;
+    }
+
+    .title {
+        font-size: 1.5em; /* Adjust title size */
+    }
+
+    /* Inscripciones page responsive styles */
+    .inscripciones-list {
+        gap: 15px;
+    }
+
+    .inscripcion-card .card-header h3 {
+        font-size: 1em;
+    }
+
+    .inscripcion-card .card-details p {
+        font-size: 0.85em;
+    }
+
+    .inscripcion-card .pdf-link-button,
+    .inscripcion-card button {
+        width: 100%;
+        margin-left: 0 !important;
+        margin-top: 10px;
+        text-align: center;
+    }
+
+    .inscripcion-card .card-details div {
+        display: flex;
+        flex-direction: column;
+    }
+}

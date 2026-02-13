@@ -15,7 +15,7 @@ from .database import database, engine, metadata
 from .models import pagos, cobros_enviados
 
 # --- Importaciones de servicios existentes ---
-from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME
+from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME, get_price_for_establishment
 from .drive_services import list_pdfs_in_folder, GOOGLE_DRIVE_FOLDER_ID
 from .email_services import send_simple_email
 
@@ -63,6 +63,7 @@ class SendPaymentLinkRequest(BaseModel):
     inscription_id: str
     email: str
     nombre_establecimiento: str
+    tipo_establecimiento: str # Nuevo campo
 
 # --- CORS ---
 origins = [
@@ -195,23 +196,21 @@ async def get_cobros_enviados(page: int = 1, limit: int = 10):
 
 @app.post("/api/send-payment-link")
 async def send_payment_link(request: SendPaymentLinkRequest):
-    # (Esta función no necesita cambios, ya que su lógica interna sigue siendo válida)
     try:
-        # Código existente para crear preferencia y enviar email
         if not mp_sdk_initialized:
             raise HTTPException(status_code=503, detail="Mercado Pago no está configurado.")
-    
-        fixed_price_str = get_sheets_service().spreadsheets().values().get(spreadsheetId=PRICES_SHEET_ID, range=f"'{PRICES_SHEET_NAME}'!B2").execute().get('values', [['0']])[0][0]
         
-        # Limpiar el string del precio antes de convertirlo a float
-        cleaned_price_str = fixed_price_str.replace('$', '').replace(',', '').strip()
-        fixed_price = float(cleaned_price_str)
+        # Obtener el precio dinámicamente según el tipo de establecimiento
+        try:
+            dynamic_price = get_price_for_establishment(PRICES_SHEET_ID, PRICES_SHEET_NAME, request.tipo_establecimiento)
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
 
-        if fixed_price <= 0:
+        if dynamic_price <= 0:
             raise ValueError("Precio de pago no válido.")
 
         preference_data = {
-            "items": [{"title": f"Cuota Anual Caza 2026 - {request.nombre_establecimiento}", "quantity": 1, "unit_price": fixed_price}],
+            "items": [{"title": f"Cuota Anual Caza 2026 - {request.nombre_establecimiento}", "quantity": 1, "unit_price": dynamic_price}],
             "payer": {"email": request.email},
             "external_reference": request.inscription_id,
             "back_urls": {
@@ -232,7 +231,7 @@ async def send_payment_link(request: SendPaymentLinkRequest):
         email_html = f"""
             <h1>Hola {request.nombre_establecimiento},</h1>
             <p>Aquí tienes tu enlace para abonar la cuota anual.</p>
-            <p><strong>Monto:</strong> ${fixed_price}</p>
+            <p><strong>Monto:</strong> ${dynamic_price}</p>
             <a href="{payment_link}" target="_blank" style="padding: 15px; background-color: #009ee3; color: white; text-decoration: none; border-radius: 5px;">Pagar Ahora</a>
         """
         
@@ -245,7 +244,7 @@ async def send_payment_link(request: SendPaymentLinkRequest):
         log_query = cobros_enviados.insert().values(
             inscription_id=request.inscription_id,
             email=request.email,
-            amount=fixed_price,
+            amount=dynamic_price,
             date_sent=datetime.datetime.now(datetime.timezone.utc)
         )
         await database.execute(log_query)

@@ -157,6 +157,47 @@ def update_payment_status(sheet_id, sheet_name, inscription_id, new_status):
         return None
 
 
+def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
+    """
+    Obtiene el precio de la hoja 'precios' basado en el tipo de establecimiento.
+
+    Args:
+        sheet_id (str): El ID de la hoja de cálculo de precios.
+        sheet_name (str): El nombre de la pestaña de precios.
+        tipo_establecimiento (str): El tipo de establecimiento ('Area Libre' o 'Criadero').
+
+    Returns:
+        float: El precio correspondiente.
+    """
+    precios_df = read_sheet_data(sheet_id, sheet_name)
+
+    if precios_df.empty:
+        raise ValueError("No se pudieron leer los datos de la hoja de precios.")
+
+    # Mapeo de tipo de establecimiento a la descripción en la hoja de precios
+    actividad_map = {
+        'Area Libre': 'Establecimientos Area Libre',
+        'Criadero': 'Establecimientos Criadero'
+    }
+
+    actividad = actividad_map.get(tipo_establecimiento)
+    if not actividad:
+        raise ValueError(f"Tipo de establecimiento no válido: {tipo_establecimiento}")
+
+    # Buscar el precio en el DataFrame
+    precio_row = precios_df[precios_df['Actividad'] == actividad]
+
+    if precio_row.empty:
+        raise ValueError(f"No se encontró el precio para la actividad: {actividad}")
+
+    # Obtener el valor de la columna 'Valor'
+    precio_str = precio_row.iloc[0]['Valor']
+    
+    # Limpiar y convertir el precio
+    cleaned_price_str = precio_str.replace('$', '').replace(',', '').strip()
+    return float(cleaned_price_str)
+
+
 if __name__ == '__main__':
     # Bloque de prueba para la función read_sheet_data
     print("Probando la función read_sheet_data...")
@@ -169,4 +210,5 @@ if __name__ == '__main__':
             print(sheet_df.head()) # Mostrar las primeras 5 filas
         else:
             print("No se pudo leer la hoja de cálculo.")
+
 

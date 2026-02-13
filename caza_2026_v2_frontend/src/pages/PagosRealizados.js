@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchPayments, fetchCobrosEnviados } from '../utils/api';
 import './PagosRealizados.css';
+import '../styles/Responsive.css';
 
 const PagosRealizados = () => {
   // State for the view mode
@@ -81,7 +82,7 @@ const PagosRealizados = () => {
         {payments.length === 0 ? (
           <p>No se encontraron pagos.</p>
         ) : (
-          <>
+          <div className="table-responsive">
             <table className="payments-table">
               <thead>
                 <tr>
@@ -115,7 +116,7 @@ const PagosRealizados = () => {
                 Siguiente
               </button>
             </div>
-          </>
+          </div>
         )}
       </>
     );
@@ -129,7 +130,7 @@ const PagosRealizados = () => {
         {sentCobros.length === 0 ? (
           <p>No se encontraron cobros enviados.</p>
         ) : (
-          <>
+          <div className="table-responsive">
             <table className="payments-table">
               <thead>
                 <tr>
@@ -159,7 +160,7 @@ const PagosRealizados = () => {
                     Siguiente
                 </button>
             </div>
-          </>
+          </div>
         )}
       </>
     );
