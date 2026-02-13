@@ -204,11 +204,11 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
     if precio_row.empty:
         raise ValueError(f"No se encontró el precio para la actividad: '{actividad}' después de limpiar los espacios.")
 
-    # Obtener el valor de la columna ' Valor'. Usamos .get() para evitar KeyError y manejar mejor el error.
-    precio_str = precio_row.iloc[0].get(' Valor')
+    # Obtener el valor de la columna 'Valor'. Usamos .get() para evitar KeyError y manejar mejor el error.
+    precio_str = precio_row.iloc[0].get('Valor')
     
     if precio_str is None:
-        raise ValueError(f"La columna ' Valor' no se encontró o está vacía para la actividad '{actividad}'. Columnas disponibles: {precios_df.columns.tolist()}")
+        raise ValueError(f"La columna 'Valor' no se encontró o está vacía para la actividad '{actividad}'. Columnas disponibles: {precios_df.columns.tolist()}")
 
     # Limpiar y convertir el precio
     cleaned_price_str = str(precio_str).replace('$', '').replace(',', '').strip()
