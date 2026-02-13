@@ -201,6 +201,7 @@ const Inscripciones = () => {
               {expandedStates[index] && ( // Expanded view
                 <div className="card-details">
                   <p><strong>Email:</strong> {inscripcion.email || 'N/A'}</p>
+                  <p><strong>Establecimiento:</strong> {inscripcion['su establecimiento es'] || 'N/A'}</p>
                   <p><strong>Celular:</strong> {inscripcion.celular || 'N/A'}</p>
                   <p><strong>Fecha:</strong> {formatDate(inscripcion.fecha_creacion)}</p>
                   <p><strong>Estado del Pago:</strong> <span style={{ fontWeight: 'bold', color: inscripcion['Estado de Pago'] === 'Pagado' ? 'green' : 'orange' }}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
