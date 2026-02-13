@@ -203,31 +203,16 @@ const Inscripciones = () => {
 
   return (
     <div>
-      <h2 style={{ textAlign: 'left', marginBottom: '20px' }}>Inscripciones</h2>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <button
-          onClick={handleLinkData}
-          disabled={linkingData}
-          style={{
-            padding: '10px 20px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            backgroundColor: linkingData ? '#CCCCCC' : '#A8C289', // primaryColor, disabled color
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: linkingData ? 'not-allowed' : 'pointer',
-            transition: 'background-color 0.3s ease',
-          }}
-        >
+      <div className="toolbar">
+        <button onClick={handleLinkData} disabled={linkingData} className="action-button btn-primary">
           {linkingData ? 'Vinculando...' : 'Vincular Datos'}
         </button>
         <input
           type="text"
-          placeholder="Buscar inscripciones por nombre o razón social..."
+          placeholder="Buscar por nombre o razón social..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ width: '70%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
+          className="search-input"
         />
       </div>
       {linkingError && <p style={{ color: 'red', textAlign: 'center' }}>{linkingError}</p>}
@@ -237,98 +222,53 @@ const Inscripciones = () => {
       {filteredInscripciones.length > 0 ? (
         <div className="inscripciones-list">
           {filteredInscripciones.map((inscripcion, index) => (
-            <div key={inscripcion.numero_inscripcion || index} className="inscripcion-card"> {/* Using a more stable key */}
+            <div key={inscripcion.numero_inscripcion || index} className="inscripcion-card" data-expanded={!!expandedStates[index]}>
               <div className="card-header" onClick={() => toggleExpand(index)}>
                 <h3>{inscripcion.nombre_establecimiento || 'Nombre no disponible'}</h3>
-                <span className="expand-toggle">{expandedStates[index] ? '▲' : '▼'}</span>
+                <span className="expand-toggle">▼</span>
               </div>
               
-              {expandedStates[index] && ( // Expanded view
+              {expandedStates[index] && (
                 <div className="card-details">
                   <p><strong>Email:</strong> {inscripcion.email || 'N/A'}</p>
                   <p><strong>Establecimiento:</strong> {inscripcion['su establecimiento es'] || 'N/A'}</p>
                   <p><strong>Celular:</strong> {inscripcion.celular || 'N/A'}</p>
                   <p><strong>Fecha:</strong> {formatDate(inscripcion.fecha_creacion)}</p>
-                  <p><strong>Estado del Pago:</strong> <span style={{ fontWeight: 'bold', color: inscripcion['Estado de Pago'] === 'Pagado' ? 'green' : 'orange' }}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
-                  <div style={{ marginTop: '10px' }}>
+                  <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(inscripcion['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
+                  
+                  <div className="action-buttons">
                     {inscripcion.pdf_link && (
-                      <a href={inscripcion.pdf_link} target="_blank" rel="noopener noreferrer" className="pdf-link-button">
+                      <a href={inscripcion.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary">
                         Ver PDF
                       </a>
                     )}
                     <button
                       onClick={() => handleViewCredential(inscripcion, index)}
                       disabled={viewingCredential[index]}
-                      style={{
-                        marginLeft: '10px',
-                        padding: '8px 15px',
-                        fontSize: '0.9em',
-                        fontWeight: 'bold',
-                        backgroundColor: viewingCredential[index] ? '#CCCCCC' : '#17a2b8',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: viewingCredential[index] ? 'not-allowed' : 'pointer',
-                        transition: 'background-color 0.3s ease',
-                      }}
+                      className="action-button btn-info"
                     >
                       {viewingCredential[index] ? 'Cargando...' : 'Ver Credencial'}
                     </button>
                     {inscripcion.email && (
-                      <button
-                          onClick={() => handleSendEmail(inscripcion, index)}
-                          disabled={sendingEmail[index]}
-                          style={{
-                              marginLeft: '10px',
-                              padding: '8px 15px',
-                              fontSize: '0.9em',
-                              fontWeight: 'bold',
-                              backgroundColor: sendingEmail[index] ? '#CCCCCC' : '#4CAF50', // Color verde si no está enviando, gris si está enviando
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '5px',
-                              cursor: sendingEmail[index] ? 'not-allowed' : 'pointer',
-                              transition: 'background-color 0.3s ease',
-                          }}
-                      >
-                          {sendingEmail[index] ? 'Enviando...' : 'Enviar Email'}
-                      </button>
-                    )}
-                    {inscripcion.email && (
                       <>
+                        <button
+                            onClick={() => handleSendEmail(inscripcion, index)}
+                            disabled={sendingEmail[index]}
+                            className="action-button btn-secondary"
+                        >
+                            {sendingEmail[index] ? 'Enviando...' : 'Enviar Email'}
+                        </button>
                         <button
                           onClick={() => handleSendPayment(inscripcion, index)}
                           disabled={sendingPayment[index] || inscripcion['Estado de Pago'] === 'Pagado'}
-                          style={{
-                            marginLeft: '10px',
-                            padding: '8px 15px',
-                            fontSize: '0.9em',
-                            fontWeight: 'bold',
-                            backgroundColor: (sendingPayment[index] || inscripcion['Estado de Pago'] === 'Pagado') ? '#CCCCCC' : '#009ee3',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '5px',
-                            cursor: (sendingPayment[index] || inscripcion['Estado de Pago'] === 'Pagado') ? 'not-allowed' : 'pointer',
-                            transition: 'background-color 0.3s ease',
-                          }}
+                          className="action-button btn-primary"
                         >
-                          {sendingPayment[index] ? 'Enviando Cobro...' : (inscripcion['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro')}
+                          {sendingPayment[index] ? 'Enviando...' : (inscripcion['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro')}
                         </button>
                         <button
                           onClick={() => handleSendCredential(inscripcion, index)}
                           disabled={sendingCredential[index]}
-                          style={{
-                            marginLeft: '10px',
-                            padding: '8px 15px',
-                            fontSize: '0.9em',
-                            fontWeight: 'bold',
-                            backgroundColor: sendingCredential[index] ? '#CCCCCC' : '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '5px',
-                            cursor: sendingCredential[index] ? 'not-allowed' : 'pointer',
-                            transition: 'background-color 0.3s ease',
-                          }}
+                          className="action-button btn-success"
                         >
                           {sendingCredential[index] ? 'Enviando...' : 'Enviar Credencial'}
                         </button>
@@ -339,23 +279,10 @@ const Inscripciones = () => {
               )}
             </div>
           ))}
-          {/* Paginación */}
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '20px' }}>
+          <div className="pagination-controls">
             <button
               onClick={() => setCurrentPage(prev => prev - 1)}
               disabled={currentPage === 1 || loading}
-              style={{
-                padding: '10px 20px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                backgroundColor: currentPage === 1 || loading ? '#CCCCCC' : '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: currentPage === 1 || loading ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.3s ease',
-                marginRight: '10px'
-              }}
             >
               Anterior
             </button>
@@ -363,18 +290,6 @@ const Inscripciones = () => {
             <button
               onClick={() => setCurrentPage(prev => prev + 1)}
               disabled={currentPage === totalPages || loading}
-              style={{
-                padding: '10px 20px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                backgroundColor: currentPage === totalPages || loading ? '#CCCCCC' : '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: currentPage === totalPages || loading ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.3s ease',
-                marginLeft: '10px'
-              }}
             >
               Siguiente
             </button>
