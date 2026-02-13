@@ -229,3 +229,17 @@ export const fetchTotalInscripciones = async () => {
   }
 };
 
+export const fetchRecaudacionesStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/stats/recaudaciones`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching recaudaciones stats:", error);
+    return { recaudacion_total: 0, recaudacion_inscripciones: 0 };
+  }
+};
+

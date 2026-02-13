@@ -106,6 +106,28 @@ async def get_total_inscripciones():
         logging.error(f"Error al obtener el total de inscripciones: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="No se pudo calcular el total de inscripciones.")
 
+@app.get("/api/stats/recaudaciones")
+async def get_recaudaciones_stats():
+    try:
+        # 1. Recaudación Total
+        query_total = select(func.sum(pagos.c.amount)).where(pagos.c.status == 'approved')
+        total_revenue = await database.fetch_val(query_total)
+
+        # 2. Recaudación por Inscripciones
+        query_inscripciones = select(func.sum(pagos.c.amount)).where(
+            pagos.c.status == 'approved',
+            pagos.c.inscription_id.like('fau_inscr%')
+        )
+        inscripciones_revenue = await database.fetch_val(query_inscripciones)
+
+        return {
+            "recaudacion_total": total_revenue or 0,
+            "recaudacion_inscripciones": inscripciones_revenue or 0,
+        }
+    except Exception as e:
+        logging.error(f"Error al obtener estadísticas de recaudación: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="No se pudo calcular las estadísticas de recaudación.")
+
 @app.get("/api/inscripciones")
 async def get_inscripciones(page: int = 1, limit: int = 10):
     try:
