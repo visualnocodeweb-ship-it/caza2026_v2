@@ -165,3 +165,17 @@ export const sendPaymentLink = async (paymentLinkData) => {
   }
 };
 
+export const fetchCobrosEnviados = async (page = 1, limit = 10) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/cobros-enviados?page=${page}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching sent payments:", error);
+    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+  }
+};
+

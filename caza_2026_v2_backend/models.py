@@ -14,3 +14,13 @@ pagos = sqlalchemy.Table(
     sqlalchemy.Column("email", sqlalchemy.String),
     sqlalchemy.Column("date_created", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
 )
+
+cobros_enviados = sqlalchemy.Table(
+    "cobros_enviados",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("inscription_id", sqlalchemy.String, index=True),
+    sqlalchemy.Column("email", sqlalchemy.String),
+    sqlalchemy.Column("amount", sqlalchemy.Float),
+    sqlalchemy.Column("date_sent", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
+)

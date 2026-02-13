@@ -12,7 +12,7 @@ from sqlalchemy import select, func # <-- NUEVA IMPORTACIÓN
 
 # --- Nuevas importaciones de base de datos ---
 from .database import database, engine, metadata
-from .models import pagos
+from .models import pagos, cobros_enviados
 
 # --- Importaciones de servicios existentes ---
 from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME
@@ -164,6 +164,35 @@ async def get_pagos(page: int = 1, limit: int = 10):
         print(f"ERROR al obtener pagos: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch payments: {e}")
 
+
+@app.get("/api/cobros-enviados")
+async def get_cobros_enviados(page: int = 1, limit: int = 10):
+    max_limit = 100
+    if limit > max_limit:
+        limit = max_limit
+
+    try:
+        offset = (page - 1) * limit
+        query = cobros_enviados.select().order_by(cobros_enviados.c.date_sent.desc()).offset(offset).limit(limit)
+        fetched_cobros = await database.fetch_all(query)
+
+        total_records_query = select(func.count()).select_from(cobros_enviados)
+        total_records = await database.fetch_val(total_records_query)
+
+        cobros_data = [dict(c) for c in fetched_cobros]
+
+        return {
+            "data": cobros_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_records + limit - 1) // limit
+        }
+    except Exception as e:
+        print(f"ERROR al obtener cobros enviados: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sent payments: {e}")
+
+
 @app.post("/api/send-payment-link")
 async def send_payment_link(request: SendPaymentLinkRequest):
     # (Esta función no necesita cambios, ya que su lógica interna sigue siendo válida)
@@ -211,6 +240,16 @@ async def send_payment_link(request: SendPaymentLinkRequest):
             to_email=request.email, subject=email_subject,
             html_content=email_html, sender_email=SENDER_EMAIL_RESEND
         )
+        
+        # Registrar el cobro enviado en la nueva tabla
+        log_query = cobros_enviados.insert().values(
+            inscription_id=request.inscription_id,
+            email=request.email,
+            amount=fixed_price,
+            date_sent=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(log_query)
+        
         return {"status": "success", "message": "Email con enlace de pago enviado."}
     
     except Exception as e:
