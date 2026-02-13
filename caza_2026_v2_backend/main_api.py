@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -22,6 +23,10 @@ from .email_services import send_simple_email
 # --- Configuración ---
 load_dotenv(encoding='latin-1')
 
+# Configurar el logging para main_api
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 MAIN_SHEET_ID = GOOGLE_SHEET_ID
 MAIN_SHEET_NAME = GOOGLE_SHEET_NAME
 PRICES_SHEET_ID = os.getenv("PRICES_SHEET_ID", GOOGLE_SHEET_ID)
@@ -38,11 +43,11 @@ if MERCADOPAGO_ACCESS_TOKEN:
     try:
         mp_sdk = mercadopago.SDK(MERCADOPAGO_ACCESS_TOKEN)
         mp_sdk_initialized = True
-        print("INFO: Mercado Pago SDK inicializado exitosamente.")
+        logging.info("Mercado Pago SDK inicializado exitosamente.")
     except Exception as e:
-        print(f"ERROR: Fallo al inicializar Mercado Pago SDK: {e}")
+        logging.error(f"Fallo al inicializar Mercado Pago SDK: {e}", exc_info=True)
 else:
-    print("WARNING: MERCADOPAGO_ACCESS_TOKEN no configurado.")
+    logging.warning("MERCADOPAGO_ACCESS_TOKEN no configurado.")
 
 # --- Creación de la tabla de la base de datos ---
 metadata.create_all(bind=engine)
@@ -117,7 +122,7 @@ async def get_inscripciones(page: int = 1, limit: int = 10):
             "limit": limit, "total_pages": (total_records + limit - 1) // limit
         }
     except Exception as e:
-        print(f"ERROR al obtener inscripciones: {e}")
+        logging.error(f"Error al obtener inscripciones: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch inscripciones: {e}")
 
 @app.post("/api/link-data")
@@ -162,7 +167,7 @@ async def get_pagos(page: int = 1, limit: int = 10):
             "total_pages": (total_records + limit - 1) // limit
         }
     except Exception as e:
-        print(f"ERROR al obtener pagos: {e}")
+        logging.error(f"Error al obtener pagos: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch payments: {e}")
 
 
@@ -190,7 +195,7 @@ async def get_cobros_enviados(page: int = 1, limit: int = 10):
             "total_pages": (total_records + limit - 1) // limit
         }
     except Exception as e:
-        print(f"ERROR al obtener cobros enviados: {e}")
+        logging.error(f"Error al obtener cobros enviados: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch sent payments: {e}")
 
 
@@ -204,6 +209,7 @@ async def send_payment_link(request: SendPaymentLinkRequest):
         try:
             dynamic_price = get_price_for_establishment(PRICES_SHEET_ID, PRICES_SHEET_NAME, request.tipo_establecimiento)
         except ValueError as ve:
+            logging.error(f"Error de validación al obtener precio: {ve}", exc_info=True)
             raise HTTPException(status_code=400, detail=str(ve))
 
         if dynamic_price <= 0:
@@ -249,10 +255,11 @@ async def send_payment_link(request: SendPaymentLinkRequest):
         )
         await database.execute(log_query)
         
+        logging.info("Email con enlace de pago enviado.")
         return {"status": "success", "message": "Email con enlace de pago enviado."}
     
     except Exception as e:
-        print(f"ERROR al procesar envío de pago: {e}")
+        logging.error(f"Error al procesar envío de pago: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al procesar el envío de pago: {e}")
 
 @app.post("/api/mercadopago-webhook")
@@ -270,7 +277,7 @@ async def mercadopago_webhook(request: Request):
             pass
 
     if topic == "payment" and payment_id:
-        print(f"INFO: Notificación de pago recibida para ID: {payment_id}")
+        logging.info(f"Notificación de pago recibida para ID: {payment_id}")
         try:
             if not mp_sdk_initialized:
                 raise Exception("Webhook recibido pero Mercado Pago SDK no está inicializado.")
@@ -315,10 +322,10 @@ async def mercadopago_webhook(request: Request):
                     set_=dict(status=values['status'], status_detail=values['status_detail'])
                 )
                 await database.execute(update_stmt)
-                print(f"INFO: Pago ID {payment_id} guardado/actualizado en la base de datos.")
+                logging.info(f"Pago ID {payment_id} guardado/actualizado en la base de datos.")
 
         except Exception as e:
-            print(f"ERROR: Error al procesar el webhook de Mercado Pago: {e}")
+            logging.error(f"Error al procesar el webhook de Mercado Pago: {e}", exc_info=True)
             return {"status": "error", "message": "Internal server error"}
             
     return {"status": "notification received"}
