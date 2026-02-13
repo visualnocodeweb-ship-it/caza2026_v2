@@ -65,6 +65,11 @@ async def shutdown():
     await database.disconnect()
 
 # --- Pydantic Models ---
+class SendEmailRequest(BaseModel):
+    to_email: str
+    subject: str
+    html_content: str
+
 class SendPaymentLinkRequest(BaseModel):
     inscription_id: str
     email: str
@@ -141,6 +146,21 @@ async def link_data():
     # y el frontend refresca los datos después de llamar a este endpoint.
     # A futuro, aquí se podría implementar una lógica más compleja si es necesario.
     return {"status": "success", "message": "Data linking process triggered."}
+
+@app.post("/api/send-email")
+async def send_email_endpoint(request: SendEmailRequest):
+    try:
+        send_simple_email(
+            to_email=request.to_email,
+            subject=request.subject,
+            html_content=request.html_content,
+            sender_email=SENDER_EMAIL_RESEND
+        )
+        logging.info(f"Email de prueba enviado a {request.to_email}.")
+        return {"status": "success", "message": "Email enviado con éxito."}
+    except Exception as e:
+        logging.error(f"Error al enviar email de prueba: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al enviar email: {e}")
 
 @app.get("/api/pagos")
 async def get_pagos(page: int = 1, limit: int = 10):
@@ -313,6 +333,9 @@ async def send_credential(request: SendCredentialRequest):
 async def view_credential(numero_inscripcion: str):
     try:
         inscripciones_df = read_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
+        
+        # Asegurarse de que la columna 'numero_inscripcion' sea de tipo string para la comparación
+        inscripciones_df['numero_inscripcion'] = inscripciones_df['numero_inscripcion'].astype(str)
         
         # Buscar la inscripción por su número
         inscripcion_row = inscripciones_df[inscripciones_df['numero_inscripcion'] == numero_inscripcion]
