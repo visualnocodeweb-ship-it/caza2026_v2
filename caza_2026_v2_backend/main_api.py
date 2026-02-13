@@ -96,6 +96,16 @@ app.add_middleware(
 
 # --- Endpoints ---
 
+@app.get("/api/stats/total-inscripciones")
+async def get_total_inscripciones():
+    try:
+        inscripciones_df = read_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
+        total_count = len(inscripciones_df)
+        return {"total_inscripciones": total_count}
+    except Exception as e:
+        logging.error(f"Error al obtener el total de inscripciones: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="No se pudo calcular el total de inscripciones.")
+
 @app.get("/api/inscripciones")
 async def get_inscripciones(page: int = 1, limit: int = 10):
     try:

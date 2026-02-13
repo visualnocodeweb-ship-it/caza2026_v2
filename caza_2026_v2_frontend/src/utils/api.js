@@ -215,3 +215,17 @@ export const fetchCobrosEnviados = async (page = 1, limit = 10) => {
   }
 };
 
+export const fetchTotalInscripciones = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/stats/total-inscripciones`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching total inscripciones:", error);
+    return { total_inscripciones: 0 };
+  }
+};
+
