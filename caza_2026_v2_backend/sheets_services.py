@@ -1,3 +1,4 @@
+import logging
 from googleapiclient import discovery
 from auth_services import get_google_credentials
 from dotenv import load_dotenv
@@ -8,6 +9,9 @@ load_dotenv(encoding='latin-1') # Cargar variables de entorno del archivo .env
 
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME")
+
+# Configurar el logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def get_sheets_service():
     """Obtiene y devuelve un objeto de servicio de Google Sheets."""
@@ -31,7 +35,7 @@ def read_sheet_data(sheet_id, sheet_name):
     range_name = f"'{sheet_name}'!A:ZZ" # Lee todas las columnas hasta ZZ
 
     if not sheet_id or not sheet_name:
-        print("Error: GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no están configurados en .env")
+        logging.error("Error: GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no están configurados en .env")
         return pd.DataFrame()
 
     try:
@@ -42,24 +46,34 @@ def read_sheet_data(sheet_id, sheet_name):
         values = result.get('values', [])
 
         if not values or len(values) < 2:
-            print("No se encontraron datos o solo se encontró la fila de encabezados.")
+            logging.warning(f"No se encontraron datos o solo se encontró la fila de encabezados en la hoja '{sheet_name}'.")
             return pd.DataFrame()
 
-        headers = values[0]
+        headers = [h.strip() for h in values[0]] # Limpiar encabezados
         data_rows = values[1:]
 
         # Encuentra la primera fila con datos reales, ignorando las filas vacías
-        first_real_row = next((row for row in data_rows if row), None)
+        first_real_row = next((row for row in data_rows if any(cell.strip() for cell in row)), None) # Comprobar celdas no vacías
         if not first_real_row:
-            print("No se encontraron filas con datos después de los encabezados.")
+            logging.warning("No se encontraron filas con datos después de los encabezados.")
             return pd.DataFrame(columns=headers)
 
         # Usa el número de columnas de la primera fila con datos como la fuente de verdad
+        # Asegúrate de que trimmed_headers tenga al menos la misma longitud que first_real_row
         num_data_cols = len(first_real_row)
-        trimmed_headers = headers[:num_data_cols]
+        trimmed_headers = headers[:max(len(headers), num_data_cols)]
+        
+        # Si trimmed_headers es más corto que num_data_cols, rellenar con nombres genéricos
+        if len(trimmed_headers) < num_data_cols:
+            trimmed_headers.extend([f"Unnamed_col_{i}" for i in range(len(trimmed_headers), num_data_cols)])
 
-        # Filtra los datos para que todas las filas tengan ese mismo número de columnas
-        valid_data = [row for row in data_rows if len(row) == num_data_cols]
+        # Filtra los datos para que todas las filas tengan ese mismo número de columnas y limpiar celdas
+        valid_data = []
+        for row in data_rows:
+            # Rellenar filas más cortas con cadena vacía y limpiar celdas
+            processed_row = [cell.strip() for cell in row[:num_data_cols]]
+            processed_row.extend([''] * (num_data_cols - len(processed_row)))
+            valid_data.append(processed_row)
 
         if not valid_data:
             return pd.DataFrame(columns=trimmed_headers)
@@ -67,7 +81,7 @@ def read_sheet_data(sheet_id, sheet_name):
         df = pd.DataFrame(valid_data, columns=trimmed_headers)
         return df
     except Exception as e:
-        print(f"Error al leer datos de la hoja {sheet_id}/{sheet_name}: {e}")
+        logging.error(f"Error al leer datos de la hoja {sheet_id}/{sheet_name}: {e}", exc_info=True)
         raise # Re-raise the exception to be caught by the caller
 
 def append_sheet_data(sheet_id, sheet_name, values):
@@ -110,28 +124,26 @@ def update_payment_status(sheet_id, sheet_name, inscription_id, new_status):
         result = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_name).execute()
         values = result.get('values', [])
         if not values:
-            print(f"Error: La hoja '{sheet_name}' está vacía.")
+            logging.error(f"Error: La hoja '{sheet_name}' está vacía.")
             return None
 
-        headers = values[0]
+        headers = [h.strip() for h in values[0]] # Limpiar encabezados
         try:
             id_col_index = headers.index('numero_inscripcion')
             status_col_index = headers.index('Estado de Pago')
         except ValueError as e:
-            # Si la columna 'Estado de Pago' no existe, la podríamos agregar, pero por ahora lanzamos error.
-            # Para agregarla, necesitaríamos permisos más amplios y una lógica más compleja.
-            print(f"Error: No se encontró la columna 'numero_inscripcion' o 'Estado de Pago' en los encabezados: {e}")
+            logging.error(f"Error: No se encontró la columna 'numero_inscripcion' o 'Estado de Pago' en los encabezados: {e}", exc_info=True)
             return None
 
         # 2. Encontrar el número de fila (row_number)
         row_number = -1
         for i, row in enumerate(values[1:], start=2): # Empezar desde la fila 2
-            if len(row) > id_col_index and row[id_col_index] == inscription_id:
+            if len(row) > id_col_index and row[id_col_index].strip() == inscription_id.strip(): # Limpiar valor para comparación
                 row_number = i
                 break
         
         if row_number == -1:
-            print(f"Error: No se encontró la inscripción con ID '{inscription_id}'.")
+            logging.warning(f"Error: No se encontró la inscripción con ID '{inscription_id}'.")
             return None
 
         # 3. Actualizar la celda
@@ -149,11 +161,11 @@ def update_payment_status(sheet_id, sheet_name, inscription_id, new_status):
             body=body
         ).execute()
         
-        print(f"Éxito: Se actualizó la inscripción '{inscription_id}' a '{new_status}'.")
+        logging.info(f"Éxito: Se actualizó la inscripción '{inscription_id}' a '{new_status}'.")
         return update_result
 
     except Exception as e:
-        print(f"Error al actualizar el estado del pago para la inscripción {inscription_id}: {e}")
+        logging.error(f"Error al actualizar el estado del pago para la inscripción {inscription_id}: {e}", exc_info=True)
         return None
 
 
@@ -170,7 +182,7 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
         float: El precio correspondiente.
     """
     precios_df = read_sheet_data(sheet_id, sheet_name)
-    print(f"DEBUG: Columnas del DataFrame de precios: {precios_df.columns.tolist()}")
+    logging.info(f"Columnas del DataFrame de precios: {precios_df.columns.tolist()}")
 
     if precios_df.empty:
         raise ValueError("No se pudieron leer los datos de la hoja de precios.")
@@ -186,30 +198,38 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
         raise ValueError(f"Tipo de establecimiento no válido: {tipo_establecimiento}")
 
     # Buscar el precio en el DataFrame
-    precio_row = precios_df[precios_df['Actividad'] == actividad]
+    # Limpiar también los valores de la columna 'Actividad' antes de comparar
+    precio_row = precios_df[precios_df['Actividad'].apply(lambda x: x.strip() if isinstance(x, str) else x) == actividad.strip()]
 
     if precio_row.empty:
-        raise ValueError(f"No se encontró el precio para la actividad: {actividad}")
+        raise ValueError(f"No se encontró el precio para la actividad: '{actividad}' después de limpiar los espacios.")
 
-    # Obtener el valor de la columna 'Valor'
-    precio_str = precio_row.iloc[0]['Valor']
+    # Obtener el valor de la columna ' Valor'. Usamos .get() para evitar KeyError y manejar mejor el error.
+    precio_str = precio_row.iloc[0].get(' Valor')
     
+    if precio_str is None:
+        raise ValueError(f"La columna ' Valor' no se encontró o está vacía para la actividad '{actividad}'. Columnas disponibles: {precios_df.columns.tolist()}")
+
     # Limpiar y convertir el precio
-    cleaned_price_str = precio_str.replace('$', '').replace(',', '').strip()
+    cleaned_price_str = str(precio_str).replace('$', '').replace(',', '').strip()
     return float(cleaned_price_str)
 
 
 if __name__ == '__main__':
     # Bloque de prueba para la función read_sheet_data
-    print("Probando la función read_sheet_data...")
+    logging.info("Probando la función read_sheet_data...")
     if GOOGLE_SHEET_ID == "ID_DE_TU_HOJA_AQUI" or GOOGLE_SHEET_NAME == "NOMBRE_DE_TU_HOJA_AQUI":
-        print("Por favor, configura GOOGLE_SHEET_ID y GOOGLE_SHEET_NAME en tu archivo .env antes de probar.")
+        logging.warning("Por favor, configura GOOGLE_SHEET_ID y GOOGLE_SHEET_NAME en tu archivo .env antes de probar.")
     else:
-        sheet_df = read_sheet_data(GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME)
-        if not sheet_df.empty:
-            print(f"Se leyeron {len(sheet_df)} filas de la hoja '{GOOGLE_SHEET_NAME}':")
-            print(sheet_df.head()) # Mostrar las primeras 5 filas
-        else:
-            print("No se pudo leer la hoja de cálculo.")
+        try:
+            sheet_df = read_sheet_data(GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME)
+            if not sheet_df.empty:
+                logging.info(f"Se leyeron {len(sheet_df)} filas de la hoja '{GOOGLE_SHEET_NAME}':")
+                logging.info(sheet_df.head()) # Mostrar las primeras 5 filas
+            else:
+                logging.warning("No se pudo leer la hoja de cálculo o está vacía.")
+        except Exception as e:
+            logging.error(f"Error durante la prueba de read_sheet_data: {e}", exc_info=True)
+
 
 
