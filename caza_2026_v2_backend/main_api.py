@@ -1,5 +1,7 @@
-from fastapi.responses import HTMLResponse
 import logging
+import time
+import random
+import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -35,6 +37,35 @@ PRICES_SHEET_NAME = os.getenv("PRICES_SHEET_NAME", "precios")
 SENDER_EMAIL_RESEND = os.getenv("SENDER_EMAIL_RESEND")
 if not SENDER_EMAIL_RESEND:
     raise ValueError("SENDER_EMAIL_RESEND environment variable not set.")
+
+# --- Cache simple en memoria ---
+sheet_cache = {}
+CACHE_TTL = 300  # 5 minutos en segundos
+
+async def get_cached_sheet_data(sheet_id, sheet_name):
+    cache_key = f"{sheet_id}_{sheet_name}"
+    current_time = time.time()
+
+    if cache_key in sheet_cache:
+        data, timestamp = sheet_cache[cache_key]
+        if current_time - timestamp < CACHE_TTL:
+            logging.info(f"Devolviendo datos desde el caché para: {cache_key}")
+            return data
+
+    # Mitigación de "Thundering Herd": espera aleatoria para escalonar las peticiones
+    await asyncio.sleep(random.uniform(0, 2))
+    
+    # Re-verificar el caché después de la espera, por si otro worker ya lo llenó
+    if cache_key in sheet_cache:
+        data, timestamp = sheet_cache[cache_key]
+        if current_time - timestamp < CACHE_TTL:
+            logging.info(f"Devolviendo datos desde el caché (post-espera) para: {cache_key}")
+            return data
+
+    logging.info(f"No hay caché válido. Leyendo desde Google Sheets para: {cache_key}")
+    data = read_sheet_data(sheet_id, sheet_name)
+    sheet_cache[cache_key] = (data, current_time)
+    return data
 
 # Configuración de Mercado Pago
 MERCADOPAGO_ACCESS_TOKEN = os.getenv("MERCADOPAGO_ACCESS_TOKEN")
@@ -99,7 +130,7 @@ app.add_middleware(
 @app.get("/api/stats/total-inscripciones")
 async def get_total_inscripciones():
     try:
-        inscripciones_df = read_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
+        inscripciones_df = await get_cached_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
         total_count = len(inscripciones_df)
         return {"total_inscripciones": total_count}
     except Exception as e:
@@ -132,7 +163,7 @@ async def get_recaudaciones_stats():
 async def get_inscripciones(page: int = 1, limit: int = 10):
     try:
         # 1. Leer datos de la hoja de Google (sigue siendo la fuente de verdad para inscripciones)
-        inscripciones_df = read_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
+        inscripciones_df = await get_cached_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
         if 'fecha_creacion' in inscripciones_df.columns:
             inscripciones_df['fecha_creacion'] = pd.to_datetime(inscripciones_df['fecha_creacion'], errors='coerce')
             inscripciones_df = inscripciones_df.sort_values(by='fecha_creacion', ascending=False, na_position='last')
@@ -364,7 +395,7 @@ async def send_credential(request: SendCredentialRequest):
 @app.get("/api/view-credential/{numero_inscripcion}", response_class=HTMLResponse)
 async def view_credential(numero_inscripcion: str):
     try:
-        inscripciones_df = read_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
+        inscripciones_df = await get_cached_sheet_data(MAIN_SHEET_ID, MAIN_SHEET_NAME)
         
         # Asegurarse de que la columna 'numero_inscripcion' sea de tipo string para la comparación
         inscripciones_df['numero_inscripcion'] = inscripciones_df['numero_inscripcion'].astype(str)
