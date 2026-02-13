@@ -9,6 +9,22 @@
 }
 
 @media (max-width: 768px) {
+    .dashboard-subnav {
+        flex-wrap: wrap; /* Allow nav items to wrap on small screens */
+        justify-content: center; /* Center the items when they wrap */
+    }
+
+    .toolbar {
+        flex-direction: column; /* Stack toolbar items vertically */
+        align-items: stretch; /* Make items fill the width */
+    }
+
+    .toolbar .search-input,
+    .toolbar .action-button {
+        width: 100%; /* Make search and button full width */
+        box-sizing: border-box; /* Proper box model calculation */
+    }
+
     .payments-table th,
     .payments-table td {
         font-size: 0.8em; /* Smaller font for smaller screens */
