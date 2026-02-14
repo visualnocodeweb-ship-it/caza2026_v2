@@ -14,7 +14,7 @@ import mercadopago
 from pydantic import BaseModel
 from sqlalchemy.dialects.postgresql import insert
 from dateutil import parser # Importar el parser de fechas
-from sqlalchemy import select, func # <-- NUEVA IMPORTACIÓN
+from sqlalchemy import select, func, extract # <-- NUEVA IMPORTACIÓN
 from collections import defaultdict
 
 # --- Nuevas importaciones de base de datos ---
@@ -221,23 +221,50 @@ async def get_total_inscripciones():
         logging.error(f"Error al obtener el total de inscripciones: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="No se pudo calcular el total de inscripciones.")
 
+@app.get("/api/stats/total-permisos")
+async def get_total_permisos():
+    try:
+        permisos_df = await get_cached_sheet_data(PERMISOS_SHEET_ID, PERMISOS_SHEET_NAME)
+        total_count = len(permisos_df)
+        return {"total_permisos": total_count}
+    except Exception as e:
+        logging.error(f"Error al obtener el total de permisos: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="No se pudo calcular el total de permisos.")
+
 @app.get("/api/stats/recaudaciones")
 async def get_recaudaciones_stats():
     try:
-        # 1. Recaudación Total
-        query_total = select(func.sum(pagos.c.amount)).where(pagos.c.status == 'approved')
-        total_revenue = await database.fetch_val(query_total)
+        # Recaudación total de inscripciones
+        query_inscripciones = select(func.sum(pagos.c.amount)).where(pagos.c.status == 'approved')
+        inscripciones_revenue = await database.fetch_val(query_inscripciones) or 0
 
-        # 2. Recaudación por Inscripciones
-        query_inscripciones = select(func.sum(pagos.c.amount)).where(
-            pagos.c.status == 'approved',
-            pagos.c.inscription_id.like('fau_inscr%')
+        # Recaudación total de permisos
+        query_permisos = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
+        permisos_revenue = await database.fetch_val(query_permisos) or 0
+
+        # Recaudación de permisos por mes
+        query_permisos_mensual = (
+            select(
+                extract('year', pagos_permisos.c.date_created).label('year'),
+                extract('month', pagos_permisos.c.date_created).label('month'),
+                func.sum(pagos_permisos.c.amount).label('total')
+            )
+            .where(pagos_permisos.c.status == 'approved')
+            .group_by('year', 'month')
+            .order_by('year', 'month')
         )
-        inscripciones_revenue = await database.fetch_val(query_inscripciones)
+        permisos_mensual_records = await database.fetch_all(query_permisos_mensual)
 
+        permisos_por_mes = [
+            {"name": f"{int(r['year'])}-{int(r['month']):02d}", "total": r['total']}
+            for r in permisos_mensual_records
+        ]
+        
         return {
-            "recaudacion_total": total_revenue or 0,
-            "recaudacion_inscripciones": inscripciones_revenue or 0,
+            "recaudacion_total": inscripciones_revenue + permisos_revenue,
+            "recaudacion_inscripciones": inscripciones_revenue,
+            "recaudacion_permisos": permisos_revenue,
+            "recaudacion_permisos_por_mes": permisos_por_mes
         }
     except Exception as e:
         logging.error(f"Error al obtener estadísticas de recaudación: {e}", exc_info=True)

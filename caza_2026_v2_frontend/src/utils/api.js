@@ -300,6 +300,20 @@ export const fetchTotalInscripciones = async () => {
   }
 };
 
+export const fetchTotalPermisos = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/stats/total-permisos`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error fetching total permisos:", error);
+      return { total_permisos: 0 };
+    }
+  };
+
 export const fetchRecaudacionesStats = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/stats/recaudaciones`);
@@ -310,7 +324,7 @@ export const fetchRecaudacionesStats = async () => {
     return data;
   } catch (error) {
     console.error("Error fetching recaudaciones stats:", error);
-    return { recaudacion_total: 0, recaudacion_inscripciones: 0 };
+    return { recaudacion_total: 0, recaudacion_inscripciones: 0, recaudacion_permisos: 0, recaudacion_permisos_por_mes: [] };
   }
 };
 
@@ -345,6 +359,6 @@ export const fetchSentItems = async () => {
     return data;
   } catch (error) {
     console.error("Error fetching sent items:", error);
-    return {};
+    return [];
   }
 };

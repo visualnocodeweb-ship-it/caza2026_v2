@@ -14,6 +14,12 @@ const Dashboard = () => {
           Inscripciones
         </NavLink>
         <NavLink 
+            to="/dashboard/permisos" 
+            className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
+        >
+            Permisos
+        </NavLink>
+        <NavLink 
           to="/dashboard/recaudaciones" 
           className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
         >
