@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchTotalPermisos } from '../utils/api'; // Assuming you will create this API function
+import { fetchTotalPermisos } from '../../utils/api'; // Assuming you will create this API function
 import '../styles/App.css';
 
 const PermisosStats = () => {
