@@ -155,7 +155,7 @@ const PermisoCaza = () => {
                 <div className="card-details">
                   <p><strong>Email:</strong> {permiso['Dirección de correo electrónico'] || 'N/A'}</p>
                   <p><strong>Categoría:</strong> {permiso['Categoría'] || 'N/A'}</p>
-                  <p><strong>Celular:</strong> {permiso.WhatsApp || 'N/A'}</p>
+                  <p><strong>Celular:</strong> {permiso.WhatsApp ? <a href={`https://wa.me/${permiso.WhatsApp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">{permiso.WhatsApp}</a> : 'N/A'}</p>
                   <p><strong>Fecha:</strong> {formatDate(permiso.Fecha)}</p>
                   <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(permiso['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{permiso['Estado de Pago'] || 'Pendiente'}</span></p>
                   

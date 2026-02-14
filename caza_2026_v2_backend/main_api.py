@@ -535,7 +535,7 @@ async def send_permiso_email(request: SendPermisoEmailRequest):
             subject=email_subject,
             html_content=email_html,
             sender_email=SENDER_EMAIL_RESEND,
-            attachment_content=base64.b64encode(pdf_content),
+            attachment_content=base64.b64encode(pdf_content).decode('utf-8'),
             attachment_filename=pdf_file['name']
         )
         
