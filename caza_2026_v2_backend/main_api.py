@@ -367,7 +367,20 @@ async def mercadopago_webhook(request: Request):
                     await database.execute(update_stmt)
                     await log_activity('INFO', 'webhook_payment_success', f"{details} para inscripción {external_reference}")
                 else:
-                    # ...
+                    values = {
+                        "payment_id": payment.get('id'),
+                        "permiso_id": external_reference,
+                        "status": payment.get('status'),
+                        "status_detail": payment.get('status_detail'),
+                        "amount": payment.get('transaction_amount'),
+                        "email": payment.get('payer', {}).get('email'),
+                        "date_created": parsed_date
+                    }
+                    insert_stmt = insert(pagos_permisos).values(values)
+                    update_stmt = insert_stmt.on_conflict_do_update(
+                        index_elements=['payment_id'],
+                        set_=dict(status=values['status'], status_detail=values['status_detail'])
+                    )
                     await database.execute(update_stmt)
                     await log_activity('INFO', 'webhook_payment_success', f"{details} para permiso {external_reference}")
         except Exception as e:
