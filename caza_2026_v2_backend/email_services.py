@@ -37,7 +37,7 @@ def send_email_with_attachment(to_email: str, subject: str, html_content: str, s
             "attachments": [
                 {
                     "filename": attachment_filename,
-                    "content": list(attachment_content),
+                    "content": attachment_content,
                 }
             ],
         }
