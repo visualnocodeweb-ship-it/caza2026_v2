@@ -180,15 +180,13 @@ const PermisoCaza = () => {
                         >
                           {sendingPayment[index] ? 'Enviando...' : (permiso['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro')}
                         </button>
-                        {permiso['Estado de Pago'] === 'Pagado' && (
-                            <button
-                                onClick={() => handleSendPermiso(permiso, index)}
-                                disabled={sendingPermiso[index]}
-                                className="action-button btn-success"
-                            >
-                                {sendingPermiso[index] ? 'Enviando...' : 'Enviar Permiso'}
-                            </button>
-                        )}
+                        <button
+                            onClick={() => handleSendPermiso(permiso, index)}
+                            disabled={sendingPermiso[index]}
+                            className="action-button btn-success"
+                        >
+                            {sendingPermiso[index] ? 'Enviando...' : 'Enviar Permiso'}
+                        </button>
                       </>
                     )}
                   </div>

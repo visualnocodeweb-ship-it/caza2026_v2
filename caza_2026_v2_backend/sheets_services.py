@@ -193,8 +193,8 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
         'Criadero': 'Establecimientos Criadero'
     }
 
-    actividad = actividad_map.get(tipo_establecimiento)
-    if notividad:
+    actividad =ividad_map.get(tipo_establecimiento)
+    if not actividad:
         raise ValueError(f"Tipo de establecimiento no válido: {tipo_establecimiento}")
 
     # Buscar el precio en el DataFrame
@@ -266,6 +266,3 @@ if __name__ == '__main__':
                 logging.warning("No se pudo leer la hoja de cálculo o está vacía.")
         except Exception as e:
             logging.error(f"Error durante la prueba de read_sheet_data: {e}", exc_info=True)
-
-
-
