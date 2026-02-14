@@ -21,12 +21,49 @@ from .database import database, engine, metadata
 from .models import pagos, cobros_enviados, pagos_permisos, permisos_enviados
 
 # --- Importaciones de servicios existentes ---
-from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME, get_price_for_establishment, get_price_for_categoria
+from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME, get_price_for_establishment, get_price_for_categoria, update_cobro_enviado_status
 from .drive_services import list_pdfs_in_folder, GOOGLE_DRIVE_FOLDER_ID, download_file
 from .email_services import send_simple_email, send_email_with_attachment
 
 # --- Configuración ---
 load_dotenv(encoding='latin-1')
+
+# --- Background Task ---
+async def send_payment_links_for_new_permits():
+    while True:
+        try:
+            logging.info("Verificando nuevos permisos para enviar enlaces de pago...")
+            permisos_df = read_sheet_data(PERMISOS_SHEET_ID, PERMISOS_SHEET_NAME)
+            if 'Estado de Cobro Enviado' not in permisos_df.columns:
+                logging.error("La columna 'Estado de Cobro Enviado' no existe en la hoja de permisos.")
+                await asyncio.sleep(300) # Wait 5 minutes before retrying
+                continue
+
+            for index, row in permisos_df.iterrows():
+                if pd.isna(row['Estado de Cobro Enviado']) or row['Estado de Cobro Enviado'] == '':
+                    permiso_id = row.get('ID')
+                    email = row.get('Dirección de correo electrónico')
+                    nombre_apellido = row.get('Nombre y Apellido')
+                    categoria = row.get('Categoría')
+
+                    if all([permiso_id, email, nombre_apellido, categoria]):
+                        try:
+                            await send_permiso_payment_link(SendPermisoPaymentLinkRequest(
+                                permiso_id=permiso_id,
+                                email=email,
+                                nombre_apellido=nombre_apellido,
+                                categoria=categoria
+                            ))
+                            update_cobro_enviado_status(PERMISOS_SHEET_ID, PERMISOS_SHEET_NAME, permiso_id, "Enviado")
+                        except Exception as e:
+                            logging.error(f"Error al enviar el enlace de pago para el permiso {permiso_id}: {e}")
+                    else:
+                        logging.warning(f"Faltan datos en la fila {index + 2} de la hoja de permisos. No se puede enviar el enlace de pago.")
+            
+        except Exception as e:
+            logging.error(f"Error en la tarea de fondo para enviar enlaces de pago: {e}", exc_info=True)
+        
+        await asyncio.sleep(300) # Wait 5 minutes before the next check
 
 # Configurar el logging para main_api
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -95,6 +132,7 @@ app = FastAPI()
 @app.on_event("startup")
 async def startup():
     await database.connect()
+    asyncio.create_task(send_payment_links_for_new_permits())
 
 @app.on_event("shutdown")
 async def shutdown():

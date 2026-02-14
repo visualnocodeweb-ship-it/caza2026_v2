@@ -168,6 +168,63 @@ def update_payment_status(sheet_id, sheet_name, inscription_id, new_status):
         logging.error(f"Error al actualizar el estado del pago para la inscripción {inscription_id}: {e}", exc_info=True)
         return None
 
+def update_cobro_enviado_status(sheet_id, sheet_name, permiso_id, new_status):
+    """
+    Actualiza el estado de cobro enviado de un permiso en la hoja de Google.
+    Encuentra la fila por 'ID' y actualiza la columna 'Estado de Cobro Enviado'.
+    """
+    service = get_sheets_service()
+    range_name = f"'{sheet_name}'!A:ZZ"
+
+    try:
+        # 1. Leer toda la hoja para encontrar la fila y la columna
+        result = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_name).execute()
+        values = result.get('values', [])
+        if not values:
+            logging.error(f"Error: La hoja '{sheet_name}' está vacía.")
+            return None
+
+        headers = [h.strip() for h in values[0]] # Limpiar encabezados
+        try:
+            id_col_index = headers.index('ID')
+            status_col_index = headers.index('Estado de Cobro Enviado')
+        except ValueError as e:
+            logging.error(f"Error: No se encontró la columna 'ID' o 'Estado de Cobro Enviado' en los encabezados: {e}", exc_info=True)
+            return None
+
+        # 2. Encontrar el número de fila (row_number)
+        row_number = -1
+        for i, row in enumerate(values[1:], start=2): # Empezar desde la fila 2
+            if len(row) > id_col_index and row[id_col_index].strip() == permiso_id.strip(): # Limpiar valor para comparación
+                row_number = i
+                break
+        
+        if row_number == -1:
+            logging.warning(f"Error: No se encontró el permiso con ID '{permiso_id}'.")
+            return None
+
+        # 3. Actualizar la celda
+        # La columna se convierte a letra (A, B, C...)
+        status_col_letter = chr(ord('A') + status_col_index)
+        update_range = f"'{sheet_name}'!{status_col_letter}{row_number}"
+        
+        body = {
+            'values': [[new_status]]
+        }
+        update_result = service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=update_range,
+            valueInputOption="RAW",
+            body=body
+        ).execute()
+        
+        logging.info(f"Éxito: Se actualizó el permiso '{permiso_id}' a '{new_status}'.")
+        return update_result
+
+    except Exception as e:
+        logging.error(f"Error al actualizar el estado del cobro enviado para el permiso {permiso_id}: {e}", exc_info=True)
+        return None
+
 
 def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
     """

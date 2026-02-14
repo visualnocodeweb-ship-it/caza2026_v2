@@ -157,6 +157,7 @@ const PermisoCaza = () => {
                   <p><strong>Categoría:</strong> {permiso['Categoría'] || 'N/A'}</p>
                   <p><strong>Celular:</strong> {permiso.WhatsApp ? <a href={`https://wa.me/${permiso.WhatsApp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-button"><i className="fab fa-whatsapp"></i> {permiso.WhatsApp}</a> : 'N/A'}</p>
                   <p><strong>Fecha:</strong> {formatDate(permiso.Fecha)}</p>
+                  <p><strong>Estado de Cobro:</strong> {permiso['Estado de Cobro Enviado'] || 'No Enviado'}</p>
                   <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(permiso['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{permiso['Estado de Pago'] || 'Pendiente'}</span></p>
                   
                   <div className="action-buttons">
@@ -175,10 +176,10 @@ const PermisoCaza = () => {
                         </button>
                         <button
                           onClick={() => handleSendPermisoPayment(permiso, index)}
-                          disabled={sendingPayment[index] || permiso['Estado de Pago'] === 'Pagado'}
+                          disabled={sendingPayment[index] || permiso['Estado de Cobro Enviado'] === 'Enviado' || permiso['Estado de Pago'] === 'Pagado'}
                           className="action-button btn-primary"
                         >
-                          {sendingPayment[index] ? 'Enviando...' : (permiso['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro')}
+                          {sendingPayment[index] ? 'Enviando...' : (permiso['Estado de Cobro Enviado'] === 'Enviado' ? 'Cobro Enviado' : (permiso['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro'))}
                         </button>
                         <button
                             onClick={() => handleSendPermiso(permiso, index)}
