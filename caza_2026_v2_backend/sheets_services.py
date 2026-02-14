@@ -194,7 +194,7 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
     }
 
     actividad = actividad_map.get(tipo_establecimiento)
-    if not actividad:
+    if notividad:
         raise ValueError(f"Tipo de establecimiento no válido: {tipo_establecimiento}")
 
     # Buscar el precio en el DataFrame
@@ -213,6 +213,42 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
     # Limpiar y convertir el precio
     cleaned_price_str = str(precio_str).replace('$', '').replace(',', '').strip()
     return float(cleaned_price_str)
+
+
+def get_price_for_categoria(sheet_id, sheet_name, categoria):
+    """
+    Obtiene el precio de la hoja 'precios' basado en la categoría del permiso.
+
+    Args:
+        sheet_id (str): El ID de la hoja de cálculo de precios.
+        sheet_name (str): El nombre de la pestaña de precios.
+        categoria (str): La categoría del permiso.
+
+    Returns:
+        float: El precio correspondiente.
+    """
+    precios_df = read_sheet_data(sheet_id, sheet_name)
+    logging.info(f"Columnas del DataFrame de precios: {precios_df.columns.tolist()}")
+
+    if precios_df.empty:
+        raise ValueError("No se pudieron leer los datos de la hoja de precios.")
+
+    # Buscar el precio en el DataFrame
+    precio_row = precios_df[precios_df['Actividad'].apply(lambda x: x.strip() if isinstance(x, str) else x) == categoria.strip()]
+
+    if precio_row.empty:
+        raise ValueError(f"No se encontró el precio para la categoría: '{categoria}' después de limpiar los espacios.")
+
+    # Obtener el valor de la columna 'Valor'. Usamos .get() para evitar KeyError y manejar mejor el error.
+    precio_str = precio_row.iloc[0].get('Valor')
+    
+    if precio_str is None:
+        raise ValueError(f"La columna 'Valor' no se encontró o está vacía para la categoría '{categoria}'. Columnas disponibles: {precios_df.columns.tolist()}")
+
+    # Limpiar y convertir el precio
+    cleaned_price_str = str(precio_str).replace('$', '').replace(',', '').strip()
+    return float(cleaned_price_str)
+
 
 
 if __name__ == '__main__':

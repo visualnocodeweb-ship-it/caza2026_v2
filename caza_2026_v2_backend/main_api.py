@@ -2,6 +2,7 @@ import logging
 import time
 import random
 import asyncio
+import base64
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,12 +18,12 @@ from sqlalchemy import select, func # <-- NUEVA IMPORTACIÓN
 
 # --- Nuevas importaciones de base de datos ---
 from .database import database, engine, metadata
-from .models import pagos, cobros_enviados
+from .models import pagos, cobros_enviados, pagos_permisos, permisos_enviados
 
 # --- Importaciones de servicios existentes ---
-from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME, get_price_for_establishment
-from .drive_services import list_pdfs_in_folder, GOOGLE_DRIVE_FOLDER_ID
-from .email_services import send_simple_email
+from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME, get_price_for_establishment, get_price_for_categoria
+from .drive_services import list_pdfs_in_folder, GOOGLE_DRIVE_FOLDER_ID, download_file
+from .email_services import send_simple_email, send_email_with_attachment
 
 # --- Configuración ---
 load_dotenv(encoding='latin-1')
@@ -33,6 +34,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 MAIN_SHEET_ID = GOOGLE_SHEET_ID
 MAIN_SHEET_NAME = GOOGLE_SHEET_NAME
+PERMISOS_SHEET_ID = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+PERMISOS_SHEET_NAME = "permisos"
+PERMISOS_DRIVE_FOLDER_ID = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
 PRICES_SHEET_ID = os.getenv("PRICES_SHEET_ID", GOOGLE_SHEET_ID)
 PRICES_SHEET_NAME = os.getenv("PRICES_SHEET_NAME", "precios")
 SENDER_EMAIL_RESEND = os.getenv("SENDER_EMAIL_RESEND")
@@ -107,6 +111,17 @@ class SendPaymentLinkRequest(BaseModel):
     email: str
     nombre_establecimiento: str
     tipo_establecimiento: str # Nuevo campo
+
+class SendPermisoPaymentLinkRequest(BaseModel):
+    permiso_id: str
+    email: str
+    nombre_apellido: str
+    categoria: str
+
+class SendPermisoEmailRequest(BaseModel):
+    permiso_id: str
+    email: str
+    nombre_apellido: str
 
 class SendCredentialRequest(BaseModel):
     numero_inscripcion: str
@@ -202,6 +217,49 @@ async def get_inscripciones(page: int = 1, limit: int = 10):
     except Exception as e:
         logging.error(f"Error al obtener inscripciones: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch inscripciones: {e}")
+
+@app.get("/api/permisos")
+async def get_permisos(page: int = 1, limit: int = 10):
+    try:
+        # 1. Leer datos de la hoja de Google
+        permisos_df = await get_cached_sheet_data(PERMISOS_SHEET_ID, PERMISOS_SHEET_NAME)
+        if 'Fecha' in permisos_df.columns:
+            permisos_df['Fecha'] = pd.to_datetime(permisos_df['Fecha'], errors='coerce')
+            permisos_df = permisos_df.sort_values(by='Fecha', ascending=False, na_position='last')
+        
+        permisos_data = permisos_df.to_dict(orient="records")
+
+        # 2. Obtener todos los IDs de permisos pagados desde la base de datos
+        query = "SELECT permiso_id FROM pagos_permisos WHERE status = 'approved'"
+        paid_records = await database.fetch_all(query)
+        paid_ids = {record['permiso_id'] for record in paid_records}
+
+        # 3. Enriquecer los datos de la hoja con el estado de pago de la base de datos
+        for permiso in permisos_data:
+            if permiso.get('ID') in paid_ids:
+                permiso['Estado de Pago'] = 'Pagado'
+            else:
+                permiso['Estado de Pago'] = 'Pendiente'
+        
+        # 4. Paginación y enriquecimiento con PDFs
+        total_records = len(permisos_data)
+        start_index = (page - 1) * limit
+        end_index = start_index + limit
+        paginated_data = permisos_data[start_index:end_index]
+        
+        pdf_list = list_pdfs_in_folder(PERMISOS_DRIVE_FOLDER_ID)
+        pdf_link_map = {f"{os.path.splitext(pdf['name'])[0].strip()}.pdf": pdf['link'] for pdf in pdf_list} if pdf_list else {}
+        for permiso in paginated_data:
+            expected_pdf_name = f"{str(permiso.get('ID', '')).strip()}.pdf"
+            permiso['pdf_link'] = pdf_link_map.get(expected_pdf_name)
+
+        return {
+            "data": paginated_data, "total_records": total_records, "page": page,
+            "limit": limit, "total_pages": (total_records + limit - 1) // limit
+        }
+    except Exception as e:
+        logging.error(f"Error al obtener permisos: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch permisos: {e}")
 
 @app.post("/api/link-data")
 async def link_data():
@@ -355,6 +413,114 @@ async def send_payment_link(request: SendPaymentLinkRequest):
         logging.error(f"Error al procesar envío de pago: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al procesar el envío de pago: {e}")
 
+@app.post("/api/send-permiso-payment-link")
+async def send_permiso_payment_link(request: SendPermisoPaymentLinkRequest):
+    try:
+        if not mp_sdk_initialized:
+            raise HTTPException(status_code=503, detail="Mercado Pago no está configurado.")
+        
+        # Obtener el precio dinámicamente según la categoría
+        try:
+            dynamic_price = get_price_for_categoria(PRICES_SHEET_ID, PRICES_SHEET_NAME, request.categoria)
+        except ValueError as ve:
+            logging.error(f"Error de validación al obtener precio: {ve}", exc_info=True)
+            raise HTTPException(status_code=400, detail=str(ve))
+
+        if dynamic_price <= 0:
+            raise ValueError("Precio de pago no válido.")
+
+        preference_data = {
+            "items": [{"title": f"Permiso de Caza 2026 - {request.nombre_apellido}", "quantity": 1, "unit_price": dynamic_price}],
+            "payer": {"email": request.email},
+            "external_reference": request.permiso_id,
+            "back_urls": {
+                "success": "https://caza2026-frontend.onrender.com/permiso-caza",
+                "failure": "https://caza2026-frontend.onrender.com/permiso-caza",
+                "pending": "https://caza2026-frontend.onrender.com/permiso-caza"
+            },
+            "notification_url": "https://caza2026-1.onrender.com/api/mercadopago-webhook",
+        }
+        
+        preference_response = mp_sdk.preference().create(preference_data)
+        preference = preference_response["response"]
+        payment_link = preference.get("init_point") or preference.get("sandbox_init_point")
+        if not payment_link:
+            raise ValueError("No se pudo generar el link de pago desde Mercado Pago.")
+
+        email_subject = f"Enlace de pago para Permiso de Caza - {request.nombre_apellido}"
+        email_html = f"""
+            <h1>Hola {request.nombre_apellido},</h1>
+            <p>Aquí tienes tu enlace para abonar el permiso de caza.</p>
+            <p><strong>Monto:</strong> ${dynamic_price}</p>
+            <a href="{payment_link}" target="_blank" style="padding: 15px; background-color: #009ee3; color: white; text-decoration: none; border-radius: 5px;">Pagar Ahora</a>
+        """
+        
+        send_simple_email(
+            to_email=request.email, subject=email_subject,
+            html_content=email_html, sender_email=SENDER_EMAIL_RESEND
+        )
+        
+        # Registrar el cobro enviado en la nueva tabla
+        log_query = cobros_enviados.insert().values(
+            inscription_id=request.permiso_id,
+            email=request.email,
+            amount=dynamic_price,
+            date_sent=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(log_query)
+        
+        logging.info("Email con enlace de pago de permiso enviado.")
+        return {"status": "success", "message": "Email con enlace de pago de permiso enviado."}
+    
+    except Exception as e:
+        logging.error(f"Error al procesar envío de pago de permiso: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al procesar el envío de pago de permiso: {e}")
+
+@app.post("/api/send-permiso-email")
+async def send_permiso_email(request: SendPermisoEmailRequest):
+    try:
+        pdf_list = list_pdfs_in_folder(PERMISOS_DRIVE_FOLDER_ID)
+        pdf_file = next((pdf for pdf in pdf_list if pdf['name'].startswith(request.permiso_id)), None)
+
+        if not pdf_file:
+            raise HTTPException(status_code=404, detail="PDF no encontrado para el permiso ID.")
+
+        pdf_content = download_file(pdf_file['id'])
+        if not pdf_content:
+            raise HTTPException(status_code=500, detail="Error al descargar el PDF de Google Drive.")
+
+        email_subject = f"Tu Permiso de Caza 2026 - {request.nombre_apellido}"
+        email_html = f"""
+            <h1>Hola {request.nombre_apellido},</h1>
+            <p>Adjunto encontrarás tu permiso de caza para la temporada 2026.</p>
+            <p>¡Buena caza!</p>
+        """
+        
+        send_email_with_attachment(
+            to_email=request.email,
+            subject=email_subject,
+            html_content=email_html,
+            sender_email=SENDER_EMAIL_RESEND,
+            attachment_content=base64.b64encode(pdf_content),
+            attachment_filename=pdf_file['name']
+        )
+        
+        # Registrar el envío en la base de datos
+        log_query = permisos_enviados.insert().values(
+            permiso_id=request.permiso_id,
+            email=request.email,
+            date_sent=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(log_query)
+        
+        logging.info(f"Permiso enviado a {request.email}.")
+        return {"status": "success", "message": "Permiso enviado con éxito."}
+    
+    except Exception as e:
+        logging.error(f"Error al enviar el permiso: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al enviar el permiso: {e}")
+
+
 @app.post("/api/send-credential")
 async def send_credential(request: SendCredentialRequest):
     try:
@@ -469,41 +635,49 @@ async def mercadopago_webhook(request: Request):
             if payment:
                 # --- NUEVA LÓGICA: Guardar en PostgreSQL ---
                 date_str = payment.get('date_created')
-                # Asegurar que la fecha sea siempre timezone-aware (consciente de la zona horaria)
                 if date_str:
                     parsed_date = parser.isoparse(date_str)
-                    # Si la fecha parseada es "naive" (sin zona horaria), se asume que es UTC.
                     if parsed_date.tzinfo is None:
                         parsed_date = parsed_date.replace(tzinfo=datetime.timezone.utc)
                 else:
-                    # Si no hay fecha, usar la hora actual en UTC.
                     parsed_date = datetime.datetime.now(datetime.timezone.utc)
 
-                # La fecha `parsed_date` ya se ha asegurado que es consciente de la zona horaria (UTC).
-                # Si el error "can't subtract offset-naive and offset-aware datetimes" persiste,
-                # es probable que la columna `date_created` en la base de datos no sea
-                # `TIMESTAMP WITH TIME ZONE` (o su equivalente) o que contenga datos antiguos "naive".
-                # Para una solución definitiva, sería necesaria una migración de la base de datos
-                # para alterar el tipo de columna a `TIMESTAMP WITH TIME ZONE` y convertir los datos existentes.
-                values = {
-                    "payment_id": payment.get('id'),
-                    "inscription_id": payment.get('external_reference'),
-                    "status": payment.get('status'),
-                    "status_detail": payment.get('status_detail'),
-                    "amount": payment.get('transaction_amount'),
-                    "email": payment.get('payer', {}).get('email'),
-                    "date_created": parsed_date # Usar la fecha consciente de la zona horaria
-                }
+                external_reference = payment.get('external_reference')
                 
-                # 'Upsert': Inserta una nueva fila. Si ya existe un pago con el mismo payment_id,
-                # actualiza los campos 'status' y 'status_detail'.
-                insert_stmt = insert(pagos).values(values)
-                update_stmt = insert_stmt.on_conflict_do_update(
-                    index_elements=['payment_id'],
-                    set_=dict(status=values['status'], status_detail=values['status_detail'])
-                )
-                await database.execute(update_stmt)
-                logging.info(f"Pago ID {payment_id} guardado/actualizado en la base de datos.")
+                if external_reference and external_reference.startswith('fau_inscr'):
+                    values = {
+                        "payment_id": payment.get('id'),
+                        "inscription_id": external_reference,
+                        "status": payment.get('status'),
+                        "status_detail": payment.get('status_detail'),
+                        "amount": payment.get('transaction_amount'),
+                        "email": payment.get('payer', {}).get('email'),
+                        "date_created": parsed_date
+                    }
+                    insert_stmt = insert(pagos).values(values)
+                    update_stmt = insert_stmt.on_conflict_do_update(
+                        index_elements=['payment_id'],
+                        set_=dict(status=values['status'], status_detail=values['status_detail'])
+                    )
+                    await database.execute(update_stmt)
+                    logging.info(f"Pago de inscripción ID {payment_id} guardado/actualizado en la base de datos.")
+                else:
+                    values = {
+                        "payment_id": payment.get('id'),
+                        "permiso_id": external_reference,
+                        "status": payment.get('status'),
+                        "status_detail": payment.get('status_detail'),
+                        "amount": payment.get('transaction_amount'),
+                        "email": payment.get('payer', {}).get('email'),
+                        "date_created": parsed_date
+                    }
+                    insert_stmt = insert(pagos_permisos).values(values)
+                    update_stmt = insert_stmt.on_conflict_do_update(
+                        index_elements=['payment_id'],
+                        set_=dict(status=values['status'], status_detail=values['status_detail'])
+                    )
+                    await database.execute(update_stmt)
+                    logging.info(f"Pago de permiso ID {payment_id} guardado/actualizado en la base de datos.")
 
         except Exception as e:
             logging.error(f"Error al procesar el webhook de Mercado Pago: {e}", exc_info=True)

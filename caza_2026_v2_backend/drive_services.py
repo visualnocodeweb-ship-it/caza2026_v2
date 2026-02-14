@@ -1,11 +1,13 @@
-from googleapiclient import discovery
+from googleapiclient import discovery, http
 from auth_services import get_google_credentials
 from dotenv import load_dotenv
 import os
+import io
 
 load_dotenv(encoding='latin-1') # Cargar variables de entorno del archivo .env
 
 GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+
 
 def get_drive_service():
     """Obtiene y devuelve un objeto de servicio de Google Drive."""
@@ -69,3 +71,28 @@ if __name__ == '__main__':
                 print(f"  - Nombre: {pdf['name']}, ID: {pdf['id']}")
         else:
             print("No se encontraron PDFs en la carpeta especificada o hubo un error.")
+
+def download_file(file_id):
+    """
+    Descarga un archivo de Google Drive.
+
+    Args:
+        file_id (str): El ID del archivo a descargar.
+
+    Returns:
+        bytes: El contenido del archivo como bytes.
+               Retorna None si hay un error.
+    """
+    service = get_drive_service()
+    try:
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = http.MediaIoBaseDownload(fh, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+            print(f"Descarga {int(status.progress() * 100)}%.")
+        return fh.getvalue()
+    except Exception as e:
+        print(f"Error al descargar el archivo {file_id}: {e}")
+        return None

@@ -13,6 +13,42 @@ if not RESEND_API_KEY:
 # Configura la API key directamente en el módulo resend
 resend.api_key = RESEND_API_KEY
 
+def send_email_with_attachment(to_email: str, subject: str, html_content: str, sender_email: str, attachment_content: bytes, attachment_filename: str) -> bool:
+    """
+    Envía un correo electrónico con un archivo adjunto usando Resend.
+
+    Args:
+        to_email (str): La dirección de correo electrónico del destinatario.
+        subject (str): El asunto del correo electrónico.
+        html_content (str): El contenido HTML del cuerpo del correo electrónico.
+        sender_email (str): La dirección de correo electrónico del remitente.
+        attachment_content (bytes): El contenido del archivo adjunto en bytes.
+        attachment_filename (str): El nombre del archivo adjunto.
+
+    Returns:
+        bool: True si el correo se envió con éxito, False en caso contrario.
+    """
+    try:
+        params = {
+            "from": sender_email,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+            "attachments": [
+                {
+                    "filename": attachment_filename,
+                    "content": list(attachment_content),
+                }
+            ],
+        }
+        
+        email = resend.Emails.send(params)
+        print(f"Correo con adjunto enviado con Resend. ID: {email['id']}")
+        return True
+    except Exception as e:
+        print(f"Error al enviar correo con adjunto con Resend: {e}")
+        return False
+    
 def send_simple_email(to_email: str, subject: str, html_content: str, sender_email: str = "onboarding@resend.dev") -> bool:
     """
     Envía un correo electrónico simple usando Resend.

@@ -17,6 +17,20 @@ export const fetchInscripciones = async (page = 1, limit = 10) => {
   }
 };
 
+export const fetchPermisos = async (page = 1, limit = 10) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/permisos?page=${page}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching permisos:", error);
+    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+  }
+};
+
 export const fetchErrorLog = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/error-log`);
@@ -30,6 +44,7 @@ export const fetchErrorLog = async () => {
     return [];
   }
 };
+
 
 export const fetchPrices = async () => {
   try {
@@ -161,6 +176,48 @@ export const sendPaymentLink = async (paymentLinkData) => {
     return data;
   } catch (error) {
     console.error("Error sending payment link:", error);
+    throw error;
+  }
+};
+
+export const sendPermisoPaymentLink = async (paymentLinkData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/send-permiso-payment-link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(paymentLinkData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error sending permiso payment link:", error);
+    throw error;
+  }
+};
+
+export const sendPermisoEmailAPI = async (permisoData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/send-permiso-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(permisoData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error sending permiso email:", error);
     throw error;
   }
 };

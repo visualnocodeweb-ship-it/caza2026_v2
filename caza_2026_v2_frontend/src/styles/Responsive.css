@@ -75,16 +75,17 @@
     .inscripcion-card .action-buttons {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px; /* space between buttons */
+        gap: 8px; /* space between buttons */
         justify-content: center; /* Center buttons */
         margin-top: 10px;
     }
 
     .inscripcion-card .action-buttons .action-button,
     .inscripcion-card .action-buttons a.action-button {
-        width: calc(50% - 10px); /* Two buttons per row with a gap */
+        width: calc(50% - 8px); /* Two buttons per row with a gap */
         margin-left: 0 !important;
         text-align: center;
+        font-size: 0.8em; /* Smaller font for smaller buttons */
     }
 
     /* Adjust for an odd number of buttons */
