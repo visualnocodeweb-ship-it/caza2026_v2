@@ -132,7 +132,6 @@ app = FastAPI()
 @app.on_event("startup")
 async def startup():
     await database.connect()
-    asyncio.create_task(send_payment_links_for_new_permits())
 
 @app.on_event("shutdown")
 async def shutdown():
