@@ -22,17 +22,9 @@ def get_sheets_service():
 def read_sheet_data(sheet_id, sheet_name):
     """
     Lee los datos de una hoja de cálculo específica de Google Sheets y los devuelve como un DataFrame de Pandas.
-
-    Args:
-        sheet_id (str): El ID de la hoja de cálculo de Google.
-        sheet_name (str): El nombre de la pestaña dentro de la hoja de cálculo (ej. 'Hoja1').
-
-    Returns:
-        pd.DataFrame: Un DataFrame de Pandas con los datos de la hoja.
-                      Retorna un DataFrame vacío si no se encuentran datos o hay un error.
     """
     service = get_sheets_service()
-    range_name = f"'{sheet_name}'!A:ZZ" # Lee todas las columnas hasta ZZ
+    range_name = f"'{sheet_name}'!A:ZZ"
 
     if not sheet_id or not sheet_name:
         logging.error("Error: GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no están configurados en .env")
@@ -49,40 +41,26 @@ def read_sheet_data(sheet_id, sheet_name):
             logging.warning(f"No se encontraron datos o solo se encontró la fila de encabezados en la hoja '{sheet_name}'.")
             return pd.DataFrame()
 
-        headers = [h.strip() for h in values[0]] # Limpiar encabezados
+        headers = [h.strip() for h in values[0]]
         data_rows = values[1:]
+        
+        # Ensure all rows have the same number of columns as the headers, padding with empty strings
+        num_headers = len(headers)
+        processed_rows = []
+        for row in data_rows:
+            processed_row = [cell.strip() for cell in row]
+            while len(processed_row) < num_headers:
+                processed_row.append('')
+            processed_rows.append(processed_row[:num_headers])
 
-        # Encuentra la primera fila con datos reales, ignorando las filas vacías
-        first_real_row = next((row for row in data_rows if any(cell.strip() for cell in row)), None) # Comprobar celdas no vacías
-        if not first_real_row:
-            logging.warning("No se encontraron filas con datos después de los encabezados.")
+        if not processed_rows:
             return pd.DataFrame(columns=headers)
 
-        # Usa el número de columnas de la primera fila con datos como la fuente de verdad
-        # Asegúrate de que trimmed_headers tenga al menos la misma longitud que first_real_row
-        num_data_cols = len(first_real_row)
-        trimmed_headers = headers[:max(len(headers), num_data_cols)]
-        
-        # Si trimmed_headers es más corto que num_data_cols, rellenar con nombres genéricos
-        if len(trimmed_headers) < num_data_cols:
-            trimmed_headers.extend([f"Unnamed_col_{i}" for i in range(len(trimmed_headers), num_data_cols)])
-
-        # Filtra los datos para que todas las filas tengan ese mismo número de columnas y limpiar celdas
-        valid_data = []
-        for row in data_rows:
-            # Rellenar filas más cortas con cadena vacía y limpiar celdas
-            processed_row = [cell.strip() for cell in row[:num_data_cols]]
-            processed_row.extend([''] * (num_data_cols - len(processed_row)))
-            valid_data.append(processed_row)
-
-        if not valid_data:
-            return pd.DataFrame(columns=trimmed_headers)
-
-        df = pd.DataFrame(valid_data, columns=trimmed_headers)
+        df = pd.DataFrame(processed_rows, columns=headers)
         return df
     except Exception as e:
         logging.error(f"Error al leer datos de la hoja {sheet_id}/{sheet_name}: {e}", exc_info=True)
-        raise # Re-raise the exception to be caught by the caller
+        raise
 
 def append_sheet_data(sheet_id, sheet_name, values):
     """
