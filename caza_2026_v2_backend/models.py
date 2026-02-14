@@ -56,3 +56,13 @@ sent_items = sqlalchemy.Table(
     sqlalchemy.Column("sent_type", sqlalchemy.String), # 'cobro', 'credencial', 'pdf'
     sqlalchemy.Column("date_sent", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
 )
+
+logs = sqlalchemy.Table(
+    "logs",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("timestamp", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("level", sqlalchemy.String),
+    sqlalchemy.Column("event", sqlalchemy.String),
+    sqlalchemy.Column("details", sqlalchemy.String),
+)

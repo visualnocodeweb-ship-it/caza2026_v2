@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { fetchPayments, fetchCobrosEnviados, fetchPermisoCobrosEnviados } from '../utils/api';
+import Logs from './Logs'; // Import the new Logs component
 import './PagosRealizados.css';
 import '../styles/Responsive.css';
+import '../styles/App.css'; // Import App.css for log styles
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -17,7 +19,7 @@ const formatStatus = (status) => {
 
 const PagosRealizados = () => {
   // State for the view mode
-  const [view, setView] = useState('realizados'); // 'realizados', 'enviados', or 'permisos'
+  const [view, setView] = useState('realizados'); // 'realizados', 'enviados_inscripciones', 'enviados_permisos', 'logs'
 
   // State for "Pagos Realizados"
   const [payments, setPayments] = useState([]);
@@ -26,7 +28,7 @@ const PagosRealizados = () => {
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [paymentsTotalPages, setPaymentsTotalPages] = useState(1);
 
-  // State for "Cobros Enviados"
+  // State for "Inscripciones Cobros Enviados"
   const [sentCobros, setSentCobros] = useState([]);
   const [loadingCobros, setLoadingCobros] = useState(true);
   const [errorCobros, setErrorCobros] = useState(null);
@@ -75,7 +77,7 @@ const PagosRealizados = () => {
       }
     };
 
-    if (view === 'enviados') {
+    if (view === 'enviados_inscripciones') {
       getCobros();
     }
   }, [view, cobrosPage, limit]);
@@ -94,7 +96,7 @@ const PagosRealizados = () => {
       }
     };
 
-    if (view === 'permisos') {
+    if (view === 'enviados_permisos') {
       getPermisoCobros();
     }
   }, [view, permisoCobrosPage, limit]);
@@ -244,17 +246,28 @@ const PagosRealizados = () => {
         <button onClick={() => setView('realizados')} className={view === 'realizados' ? 'active' : ''}>
           Pagos Realizados
         </button>
-        <button onClick={() => setView('enviados')} className={view === 'enviados' ? 'active' : ''}>
-          Inscripciones
+        <button onClick={() => setView('enviados_inscripciones')} className={view === 'enviados_inscripciones' ? 'active' : ''}>
+          Inscripciones (Enviados)
         </button>
-        <button onClick={() => setView('permisos')} className={view === 'permisos' ? 'active' : ''}>
-          Permisos
+        <button onClick={() => setView('enviados_permisos')} className={view === 'enviados_permisos' ? 'active' : ''}>
+          Permisos (Enviados)
+        </button>
+        <button onClick={() => setView('logs')} className={view === 'logs' ? 'active' : ''}>
+          Logs
         </button>
       </div>
       <h1 className="title">
-        {view === 'realizados' ? 'Pagos Realizados' : view === 'enviados' ? 'Inscripciones (Cobros Enviados)' : 'Permisos (Cobros Enviados)'}
+        {view === 'realizados' ? 'Pagos Realizados' : 
+         view === 'enviados_inscripciones' ? 'Inscripciones (Cobros Enviados)' : 
+         view === 'enviados_permisos' ? 'Permisos (Cobros Enviados)' :
+         'Registro de Actividad'
+        }
       </h1>
-      {view === 'realizados' ? renderPaymentsTable() : view === 'enviados' ? renderCobrosTable() : renderPermisoCobrosTable()}
+      {view === 'realizados' ? renderPaymentsTable() : 
+       view === 'enviados_inscripciones' ? renderCobrosTable() : 
+       view === 'enviados_permisos' ? renderPermisoCobrosTable() :
+       <Logs />
+      }
     </div>
   );
 };
