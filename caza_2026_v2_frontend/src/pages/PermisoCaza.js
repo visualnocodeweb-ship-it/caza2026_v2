@@ -11,7 +11,6 @@ const PermisoCaza = () => {
   const [error, setError] = useState(null);
   const [expandedStates, setExpandedStates] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [sendingEmail, setSendingEmail] = useState({});
   const [sendingPayment, setSendingPayment] = useState({});
   const [sendingPermiso, setSendingPermiso] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
