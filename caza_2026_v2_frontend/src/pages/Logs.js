@@ -2,17 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { fetchLogs } from '../utils/api';
 import '../styles/App.css';
 
+const RECORDS_PER_PAGE = 15; // Constante para la paginación
+
 const Logs = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalRecords, setTotalRecords] = useState(0);
 
     useEffect(() => {
         const getLogs = async () => {
             try {
                 setLoading(true);
-                const data = await fetchLogs();
-                setLogs(data);
+                const data = await fetchLogs(currentPage, RECORDS_PER_PAGE);
+                setLogs(data.data);
+                setTotalRecords(data.total_records);
+                setTotalPages(data.total_pages);
             } catch (err) {
                 setError('No se pudieron cargar los logs.');
                 console.error(err);
@@ -22,7 +29,7 @@ const Logs = () => {
         };
 
         getLogs();
-    }, []);
+    }, [currentPage]); // Dependencia: currentPage
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -72,6 +79,21 @@ const Logs = () => {
                         )}
                     </tbody>
                 </table>
+                <div className="pagination-controls">
+                    <button
+                        onClick={() => setCurrentPage(prev => prev - 1)}
+                        disabled={currentPage === 1 || loading}
+                    >
+                        Anterior
+                    </button>
+                    <span>Página {currentPage} de {totalPages} ({totalRecords} registros)</span>
+                    <button
+                        onClick={() => setCurrentPage(prev => prev + 1)}
+                        disabled={currentPage === totalPages || loading}
+                    >
+                        Siguiente
+                    </button>
+                </div>
             </div>
         </div>
     );

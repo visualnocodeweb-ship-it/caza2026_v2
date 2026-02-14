@@ -363,9 +363,9 @@ export const fetchSentItems = async () => {
   }
 };
 
-export const fetchLogs = async () => {
+export const fetchLogs = async (page = 1, limit = 15) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/logs`);
+      const response = await fetch(`${API_BASE_URL}/logs?page=${page}&limit=${limit}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -373,6 +373,6 @@ export const fetchLogs = async () => {
       return data;
     } catch (error) {
       console.error("Error fetching logs:", error);
-      return [];
+      return { data: [], total_records: 0, page: 1, limit: 15, total_pages: 0 };
     }
   };

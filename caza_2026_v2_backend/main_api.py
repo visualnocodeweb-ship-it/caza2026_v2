@@ -17,6 +17,7 @@ from dateutil import parser
 from sqlalchemy import select, func, extract
 from collections import defaultdict
 import traceback
+import math
 
 # --- Nuevas importaciones de base de datos ---
 from .database import database, engine, metadata
@@ -170,12 +171,27 @@ app.add_middleware(
 
 # --- Endpoints ---
 @app.get("/api/logs")
-async def get_logs(page: int = 1, limit: int = 200):
+async def get_logs(page: int = 1, limit: int = 15): # Default limit to 15
     try:
+        # Get total records
+        total_records_query = select(func.count()).select_from(logs)
+        total_records = await database.fetch_val(total_records_query)
+
+        # Calculate offset and total pages
         offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit)
+
+        # Fetch paginated logs
         query = logs.select().order_by(logs.c.timestamp.desc()).offset(offset).limit(limit)
         log_records = await database.fetch_all(query)
-        return [dict(record) for record in log_records]
+        
+        return {
+            "data": [dict(record) for record in log_records],
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
     except Exception as e:
         await log_activity('ERROR', 'get_logs_failed', f"Error al obtener logs: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to fetch logs.")
