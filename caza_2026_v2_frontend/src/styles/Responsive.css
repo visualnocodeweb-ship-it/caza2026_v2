@@ -72,16 +72,24 @@
         font-size: 0.85em;
     }
 
-    .inscripcion-card .pdf-link-button,
-    .inscripcion-card button {
-        width: 100%;
-        margin-left: 0 !important;
+    .inscripcion-card .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px; /* space between buttons */
+        justify-content: center; /* Center buttons */
         margin-top: 10px;
+    }
+
+    .inscripcion-card .action-buttons .action-button,
+    .inscripcion-card .action-buttons a.action-button {
+        width: calc(50% - 10px); /* Two buttons per row with a gap */
+        margin-left: 0 !important;
         text-align: center;
     }
 
-    .inscripcion-card .card-details div {
-        display: flex;
-        flex-direction: column;
+    /* Adjust for an odd number of buttons */
+    .inscripcion-card .action-buttons .action-button:last-child:nth-child(odd) {
+        width: 100%; /* Make the last button full width if it's odd */
     }
+
 }
