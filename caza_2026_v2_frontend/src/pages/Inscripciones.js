@@ -1,41 +1,54 @@
 import React, { useEffect, useState } from 'react';
-import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewCredentialAPI, logSentItem, fetchSentItems } from '../utils/api'; // Import all APIs
-import '../styles/App.css'; // Import global styles
-import '../styles/Responsive.css'; // Import responsive styles
+import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewCredentialAPI, logSentItem, fetchSentItems } from '../utils/api';
+import '../styles/App.css';
+import '../styles/Responsive.css';
 
-const RECORDS_PER_PAGE = 10; // Constante para la paginación
+const RECORDS_PER_PAGE = 10;
 
 const Inscripciones = () => {
   const [inscripciones, setInscripciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedStates, setExpandedStates] = useState({}); // To manage expanded state for each record
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para el término de búsqueda
-  const [linkingData, setLinkingData] = useState(false); // New state for linking data
-  const [linkingError, setLinkingError] = useState(null); // New state for linking error
-  const [sendingEmail, setSendingEmail] = useState({}); // To manage loading state per email
-  const [sendingPayment, setSendingPayment] = useState({}); // New state for payment sending
-  const [sendingCredential, setSendingCredential] = useState({}); // New state for credential sending
-  const [viewingCredential, setViewingCredential] = useState({}); // New state for viewing credential
-  const [sentStatus, setSentStatus] = useState({}); // To track sent status for each record
+  const [expandedStates, setExpandedStates] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [linkingData, setLinkingData] = useState(false);
+  const [linkingError, setLinkingError] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState({});
+  const [sendingPayment, setSendingPayment] = useState({});
+  const [sendingCredential, setSendingCredential] = useState({});
+  const [viewingCredential, setViewingCredential] = useState({});
   // Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const getInscripciones = async (page) => { // Acepta 'page' como argumento
+  const getInscripciones = async (page) => {
     setLoading(true);
     setError(null);
     try {
-      const [inscripcionesResponse, sentItemsResponse] = await Promise.all([
+      const [inscripcionesResponse, sentItemsRaw] = await Promise.all([
         fetchInscripciones(page, RECORDS_PER_PAGE),
         fetchSentItems()
       ]);
       
-      setInscripciones(inscripcionesResponse.data);
+      const sentStatusMap = inscripcionesResponse.data.reduce((acc, insc) => {
+        acc[insc.numero_inscripcion] = [];
+        return acc;
+      }, {});
+      sentItemsRaw.forEach(item => {
+        if (item.item_type === 'inscripcion' && sentStatusMap[item.item_id]) {
+          sentStatusMap[item.item_id].push(item.sent_type);
+        }
+      });
+
+      const updatedInscripciones = inscripcionesResponse.data.map(insc => ({
+        ...insc,
+        sent_statuses: sentStatusMap[insc.numero_inscripcion] || []
+      }));
+
+      setInscripciones(updatedInscripciones);
       setTotalRecords(inscripcionesResponse.total_records);
       setTotalPages(inscripcionesResponse.total_pages);
-      setSentStatus(sentItemsResponse);
       
       const initialExpandedStates = inscripcionesResponse.data.reduce((acc, _, index) => {
         acc[index] = false;
@@ -45,7 +58,7 @@ const Inscripciones = () => {
     } catch (err) {
       console.error("Error al obtener inscripciones:", err);
       setError('No se pudieron cargar las inscripciones.');
-      setInscripciones([]); // Clear inscriptions on error
+      setInscripciones([]);
       setTotalRecords(0);
       setTotalPages(0);
     } finally {
@@ -55,7 +68,7 @@ const Inscripciones = () => {
 
   useEffect(() => {
     getInscripciones(currentPage);
-  }, [currentPage]); // Dependencia: currentPage
+  }, [currentPage]);
 
   const toggleExpand = (index) => {
     setExpandedStates(prevStates => ({
@@ -66,10 +79,10 @@ const Inscripciones = () => {
 
   const handleLinkData = async () => {
     setLinkingData(true);
-    setLinkingError(null); // Clear previous errors
+    setLinkingError(null);
     try {
       await linkData();
-      await getInscripciones(currentPage); // Refetch data after linking, staying on current page
+      await getInscripciones(currentPage);
       alert('Datos vinculados y actualizados correctamente.');
     } catch (err) {
       setLinkingError('Error al vincular los datos: ' + err.message);
@@ -89,6 +102,16 @@ const Inscripciones = () => {
     window.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
+  const updateSentStatusLocally = (inscripcionId, sentType) => {
+    setInscripciones(prevInscripciones => 
+      prevInscripciones.map(insc => 
+        insc.numero_inscripcion === inscripcionId 
+          ? { ...insc, sent_statuses: [...insc.sent_statuses, sentType] }
+          : insc
+      )
+    );
+  };
+
   const handleSendPayment = async (inscripcion, index) => {
     if (!inscripcion.email || !inscripcion.numero_inscripcion || !inscripcion.nombre_establecimiento) {
       alert('Faltan datos esenciales (email, ID de inscripción o nombre) para enviar el cobro.');
@@ -101,11 +124,11 @@ const Inscripciones = () => {
         inscription_id: inscripcion.numero_inscripcion,
         email: inscripcion.email,
         nombre_establecimiento: inscripcion.nombre_establecimiento,
-        tipo_establecimiento: inscripcion['su establecimiento es'], // Add this line
+        tipo_establecimiento: inscripcion['su establecimiento es'],
       });
       await logSentItem({ item_id: inscripcion.numero_inscripcion, item_type: 'inscripcion', sent_type: 'cobro' });
       alert(`Email de cobro enviado a ${inscripcion.email} con éxito.`);
-      setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'cobro' }));
+      updateSentStatusLocally(inscripcion.numero_inscripcion, 'cobro');
     } catch (err) {
       alert(`Error al enviar el email de cobro: ${err.message}`);
     } finally {
@@ -131,7 +154,7 @@ const Inscripciones = () => {
       });
       await logSentItem({ item_id: inscripcion.numero_inscripcion, item_type: 'inscripcion', sent_type: 'credencial' });
       alert(`Credencial enviada a ${inscripcion.email} con éxito.`);
-      setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'credencial' }));
+      updateSentStatusLocally(inscripcion.numero_inscripcion, 'credencial');
     } catch (err) {
       alert(`Error al enviar la credencial: ${err.message}`);
     } finally {
@@ -160,30 +183,29 @@ const Inscripciones = () => {
 
   const handleSendPdf = async (inscripcion) => {
     try {
+      // Assuming 'Ver PDF' action also needs logging
       await logSentItem({ item_id: inscripcion.numero_inscripcion, item_type: 'inscripcion', sent_type: 'pdf' });
-      setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'pdf' }));
+      updateSentStatusLocally(inscripcion.numero_inscripcion, 'pdf');
     } catch (err) {
-      alert(`Error al registrar la acción: ${err.message}`);
+      alert(`Error al registrar la acción de ver PDF: ${err.message}`);
     }
   }
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    // Ensure the date is valid before formatting
     if (isNaN(date.getTime())) {
       return 'Fecha inválida';
     }
-    return date.toLocaleString(); // Formats date and time based on locale
+    return date.toLocaleString();
   };
 
-  // Lógica de filtrado
   const filteredInscripciones = inscripciones.filter(inscripcion =>
     (inscripcion.nombre_establecimiento && inscripcion.nombre_establecimiento.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (inscripcion.razon_social && inscripcion.razon_social.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  if (loading && inscripciones.length === 0) { // Only show full loading if no data is present
+  if (loading && inscripciones.length === 0) {
     return <p>Cargando inscripciones...</p>;
   }
 
@@ -207,7 +229,7 @@ const Inscripciones = () => {
       </div>
       {linkingError && <p style={{ color: 'red', textAlign: 'center' }}>{linkingError}</p>}
       
-      {loading && inscripciones.length > 0 && <p>Actualizando inscripciones...</p>} {/* Show subtle loading when refetching */}
+      {loading && inscripciones.length > 0 && <p>Actualizando inscripciones...</p>}
 
       {filteredInscripciones.length > 0 ? (
         <div className="inscripciones-list">
@@ -265,9 +287,9 @@ const Inscripciones = () => {
                     )}
                   </div>
                   <div className="sent-status-container">
-                    {(inscripcion.sent_status || sentStatus[inscripcion.numero_inscripcion]) && (
+                    {inscripcion.sent_statuses && inscripcion.sent_statuses.length > 0 && (
                         <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                            Enviado: {inscripcion.sent_status || sentStatus[inscripcion.numero_inscripcion]}
+                            Enviado: {inscripcion.sent_statuses.join(', ')}
                         </p>
                     )}
                   </div>

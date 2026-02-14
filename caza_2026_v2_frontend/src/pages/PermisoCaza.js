@@ -13,7 +13,7 @@ const PermisoCaza = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingPayment, setSendingPayment] = useState({});
   const [sendingPermiso, setSendingPermiso] = useState({});
-  const [sentStatus, setSentStatus] = useState({}); // To track sent status for each record
+  // Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -22,15 +22,29 @@ const PermisoCaza = () => {
     setLoading(true);
     setError(null);
     try {
-      const [permisosResponse, sentItemsResponse] = await Promise.all([
+      const [permisosResponse, sentItemsRaw] = await Promise.all([
         fetchPermisos(page, RECORDS_PER_PAGE),
         fetchSentItems()
       ]);
 
-      setPermisos(permisosResponse.data);
+      const sentStatusMap = permisosResponse.data.reduce((acc, perm) => {
+        acc[perm.ID] = [];
+        return acc;
+      }, {});
+      sentItemsRaw.forEach(item => {
+        if (item.item_type === 'permiso' && sentStatusMap[item.item_id]) {
+          sentStatusMap[item.item_id].push(item.sent_type);
+        }
+      });
+
+      const updatedPermisos = permisosResponse.data.map(perm => ({
+        ...perm,
+        sent_statuses: sentStatusMap[perm.ID] || []
+      }));
+
+      setPermisos(updatedPermisos);
       setTotalRecords(permisosResponse.total_records);
       setTotalPages(permisosResponse.total_pages);
-      setSentStatus(sentItemsResponse);
 
       const initialExpandedStates = permisosResponse.data.reduce((acc, _, index) => {
         acc[index] = false;
@@ -70,6 +84,16 @@ const PermisoCaza = () => {
     window.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
+  const updateSentStatusLocally = (permisoId, sentType) => {
+    setPermisos(prevPermisos => 
+      prevPermisos.map(perm => 
+        perm.ID === permisoId
+          ? { ...perm, sent_statuses: [...perm.sent_statuses, sentType] }
+          : perm
+      )
+    );
+  };
+
   const handleSendPermisoPayment = async (permiso, index) => {
     if (!permiso['Dirección de correo electrónico'] || !permiso.ID || !permiso['Nombre y Apellido'] || !permiso['Categoría']) {
       alert('Faltan datos esenciales (email, ID, nombre o categoría) para enviar el cobro.');
@@ -86,7 +110,7 @@ const PermisoCaza = () => {
       });
       await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'cobro' });
       alert(`Email de cobro enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
-      setSentStatus(prev => ({ ...prev, [permiso.ID]: 'cobro' }));
+      updateSentStatusLocally(permiso.ID, 'cobro');
     } catch (err) {
       alert(`Error al enviar el email de cobro: ${err.message}`);
     } finally {
@@ -109,7 +133,7 @@ const PermisoCaza = () => {
         });
         await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'permiso' });
         alert(`Permiso enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
-        setSentStatus(prev => ({ ...prev, [permiso.ID]: 'permiso' }));
+        updateSentStatusLocally(permiso.ID, 'permiso');
     } catch (err) {
         alert(`Error al enviar el permiso: ${err.message}`);
     } finally {
@@ -120,9 +144,9 @@ const PermisoCaza = () => {
   const handleSendPdf = async (permiso) => {
     try {
       await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'pdf' });
-      setSentStatus(prev => ({ ...prev, [permiso.ID]: 'pdf' }));
+      updateSentStatusLocally(permiso.ID, 'pdf');
     } catch (err) {
-      alert(`Error al registrar la acción: ${err.message}`);
+      alert(`Error al registrar la acción de ver PDF: ${err.message}`);
     }
   }
 
@@ -212,9 +236,9 @@ const PermisoCaza = () => {
                     )}
                   </div>
                   <div className="sent-status-container">
-                    {(permiso.sent_status || sentStatus[permiso.ID]) && (
+                    {permiso.sent_statuses && permiso.sent_statuses.length > 0 && (
                         <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                            Enviado: {permiso.sent_status || sentStatus[permiso.ID]}
+                            Enviado: {permiso.sent_statuses.join(', ')}
                         </p>
                     )}
                   </div>

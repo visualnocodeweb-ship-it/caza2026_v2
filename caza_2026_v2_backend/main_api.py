@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.dialects.postgresql import insert
 from dateutil import parser # Importar el parser de fechas
 from sqlalchemy import select, func # <-- NUEVA IMPORTACIÓN
+from collections import defaultdict
 
 # --- Nuevas importaciones de base de datos ---
 from .database import database, engine, metadata
@@ -205,7 +206,7 @@ async def get_sent_items():
     try:
         query = sent_items.select()
         sent_items_records = await database.fetch_all(query)
-        return {record['item_id']: record for record in sent_items_records}
+        return [dict(record) for record in sent_items_records]
     except Exception as e:
         logging.error(f"Error fetching sent items: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch sent items.")
@@ -260,7 +261,9 @@ async def get_inscripciones(page: int = 1, limit: int = 10):
 
         sent_query = sent_items.select().where(sent_items.c.item_type == 'inscripcion')
         sent_records = await database.fetch_all(sent_query)
-        sent_status_map = {record['item_id']: record['sent_type'] for record in sent_records}
+        sent_status_map = defaultdict(list)
+        for record in sent_records:
+            sent_status_map[record['item_id']].append(record['sent_type'])
 
 
         # 3. Enriquecer los datos de la hoja con el estado de pago de la base de datos
@@ -274,7 +277,7 @@ async def get_inscripciones(page: int = 1, limit: int = 10):
             if inscripcion_id in sent_status_map:
                 inscripcion['sent_status'] = sent_status_map[inscripcion_id]
             else:
-                inscripcion['sent_status'] = None
+                inscripcion['sent_status'] = []
 
         # 4. Paginación y enriquecimiento con PDFs (como antes)
         total_records = len(inscripciones_data)
@@ -314,7 +317,10 @@ async def get_permisos(page: int = 1, limit: int = 10):
 
         sent_query = sent_items.select().where(sent_items.c.item_type == 'permiso')
         sent_records = await database.fetch_all(sent_query)
-        sent_status_map = {record['item_id']: record['sent_type'] for record in sent_records}
+        sent_status_map = defaultdict(list)
+        for record in sent_records:
+            sent_status_map[record['item_id']].append(record['sent_type'])
+
 
         # 3. Enriquecer los datos de la hoja con el estado de pago de la base de datos
         for permiso in permisos_data:
@@ -326,7 +332,7 @@ async def get_permisos(page: int = 1, limit: int = 10):
             if permiso_id in sent_status_map:
                 permiso['sent_status'] = sent_status_map[permiso_id]
             else:
-                permiso['sent_status'] = None
+                permiso['sent_status'] = []
         
         # 4. Paginación y enriquecimiento con PDFs
         total_records = len(permisos_data)
