@@ -149,6 +149,7 @@
   text-decoration: none;
   display: inline-block;
   color: var(--white);
+  box-sizing: border-box; /* Added for consistent box model */
 }
 
 .action-button:disabled {
