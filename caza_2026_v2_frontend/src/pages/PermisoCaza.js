@@ -13,6 +13,7 @@ const PermisoCaza = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingPayment, setSendingPayment] = useState({});
   const [sendingPermiso, setSendingPermiso] = useState({});
+  const [sentStatus, setSentStatus] = useState({}); // To track sent status for each record
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -78,6 +79,7 @@ const PermisoCaza = () => {
         categoria: permiso['Categoría'],
       });
       alert(`Email de cobro enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
+      setSentStatus(prev => ({ ...prev, [permiso.ID]: 'cobro' }));
     } catch (err) {
       alert(`Error al enviar el email de cobro: ${err.message}`);
     } finally {
@@ -99,12 +101,17 @@ const PermisoCaza = () => {
             nombre_apellido: permiso['Nombre y Apellido'],
         });
         alert(`Permiso enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
+        setSentStatus(prev => ({ ...prev, [permiso.ID]: 'permiso' }));
     } catch (err) {
         alert(`Error al enviar el permiso: ${err.message}`);
     } finally {
         setSendingPermiso(prev => ({ ...prev, [index]: false }));
     }
   };
+
+  const handleSendPdf = (permiso) => {
+    setSentStatus(prev => ({ ...prev, [permiso.ID]: 'PDF' }));
+  }
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -162,7 +169,7 @@ const PermisoCaza = () => {
                   
                   <div className="action-buttons">
                     {permiso.pdf_link && (
-                      <a href={permiso.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary">
+                      <a href={permiso.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary" onClick={() => handleSendPdf(permiso)}>
                         Ver PDF
                       </a>
                     )}
@@ -189,6 +196,13 @@ const PermisoCaza = () => {
                             {sendingPermiso[index] ? 'Enviando...' : 'Enviar Permiso'}
                         </button>
                       </>
+                    )}
+                  </div>
+                  <div className="sent-status-container">
+                    {sentStatus[permiso.ID] && (
+                        <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
+                            Enviado: {sentStatus[permiso.ID]}
+                        </p>
                     )}
                   </div>
                 </div>

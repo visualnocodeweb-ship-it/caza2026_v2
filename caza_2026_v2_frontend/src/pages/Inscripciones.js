@@ -17,6 +17,7 @@ const Inscripciones = () => {
   const [sendingPayment, setSendingPayment] = useState({}); // New state for payment sending
   const [sendingCredential, setSendingCredential] = useState({}); // New state for credential sending
   const [viewingCredential, setViewingCredential] = useState({}); // New state for viewing credential
+  const [sentStatus, setSentStatus] = useState({}); // To track sent status for each record
   // Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -98,6 +99,7 @@ const Inscripciones = () => {
         tipo_establecimiento: inscripcion['su establecimiento es'], // Add this line
       });
       alert(`Email de cobro enviado a ${inscripcion.email} con éxito.`);
+      setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'cobro' }));
     } catch (err) {
       alert(`Error al enviar el email de cobro: ${err.message}`);
     } finally {
@@ -122,6 +124,7 @@ const Inscripciones = () => {
         email: inscripcion.email,
       });
       alert(`Credencial enviada a ${inscripcion.email} con éxito.`);
+      setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'credencial' }));
     } catch (err) {
       alert(`Error al enviar la credencial: ${err.message}`);
     } finally {
@@ -147,6 +150,10 @@ const Inscripciones = () => {
       setViewingCredential(prev => ({ ...prev, [index]: false }));
     }
   };
+
+  const handleSendPdf = (inscripcion) => {
+    setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'PDF' }));
+  }
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -209,7 +216,7 @@ const Inscripciones = () => {
                   
                   <div className="action-buttons">
                     {inscripcion.pdf_link && (
-                      <a href={inscripcion.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary">
+                      <a href={inscripcion.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary" onClick={() => handleSendPdf(inscripcion)}>
                         Ver PDF
                       </a>
                     )}
@@ -243,6 +250,13 @@ const Inscripciones = () => {
                           {sendingCredential[index] ? 'Enviando...' : 'Enviar Credencial'}
                         </button>
                       </>
+                    )}
+                  </div>
+                  <div className="sent-status-container">
+                    {sentStatus[inscripcion.numero_inscripcion] && (
+                        <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
+                            Enviado: {sentStatus[inscripcion.numero_inscripcion]}
+                        </p>
                     )}
                   </div>
                 </div>
