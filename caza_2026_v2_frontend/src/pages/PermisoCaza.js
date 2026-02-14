@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchPermisos, sendPermisoPaymentLink, sendEmailAPI, sendPermisoEmailAPI } from '../utils/api'; // Updated API imports
+import { fetchPermisos, sendPermisoPaymentLink, sendPermisoEmailAPI } from '../utils/api'; // Updated API imports
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -53,33 +53,15 @@ const PermisoCaza = () => {
     }));
   };
 
-  const handleSendEmail = async (permiso, index) => {
+  const handleSendEmail = (permiso) => {
     if (!permiso['Dirección de correo electrónico']) {
       alert('No hay dirección de correo para enviar.');
       return;
     }
-
-    setSendingEmail(prevStates => ({ ...prevStates, [index]: true }));
-    try {
-      const subject = `Contacto desde Panel Caza para ${permiso['Nombre y Apellido']}`;
-      const html_content = `
-          <p>Estimado/a ${permiso['Nombre y Apellido']},</p>
-          <p>Nos ponemos en contacto desde Caza 2026. Este es un correo de prueba.</p>
-          <p>Saludos cordiales,</p>
-          <p>El equipo de Caza 2026</p>
-      `;
-
-      await sendEmailAPI({
-        to_email: permiso['Dirección de correo electrónico'],
-        subject: subject,
-        html_content: html_content,
-      });
-      alert(`Correo enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
-    } catch (err) {
-      alert(`Error al enviar correo a ${permiso['Dirección de correo electrónico']}: ${err.message}`);
-    } finally {
-      setSendingEmail(prevStates => ({ ...prevStates, [index]: false }));
-    }
+    const to = permiso['Dirección de correo electrónico'];
+    const subject = `Contacto desde Panel Caza para ${permiso['Nombre y Apellido']}`;
+    const body = `Estimado/a ${permiso['Nombre y Apellido']},\n\nNos ponemos en contacto desde Caza 2026.\n\nSaludos cordiales,\nEl equipo de Caza 2026`;
+    window.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const handleSendPermisoPayment = async (permiso, index) => {
@@ -187,11 +169,10 @@ const PermisoCaza = () => {
                     {permiso['Dirección de correo electrónico'] && (
                       <>
                         <button
-                            onClick={() => handleSendEmail(permiso, index)}
-                            disabled={sendingEmail[index]}
+                            onClick={() => handleSendEmail(permiso)}
                             className="action-button btn-secondary"
                         >
-                            {sendingEmail[index] ? 'Enviando...' : 'Enviar Email'}
+                            Enviar Email
                         </button>
                         <button
                           onClick={() => handleSendPermisoPayment(permiso, index)}

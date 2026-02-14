@@ -286,32 +286,39 @@ async def send_email_endpoint(request: SendEmailRequest):
 
 @app.get("/api/pagos")
 async def get_pagos(page: int = 1, limit: int = 10):
-    # TODO: Implementar autenticación/autorización para proteger este endpoint en un entorno de producción.
-    # Expone todos los datos de pago, lo cual no es seguro sin protección.
-    
-    max_limit = 100 # Definir un límite máximo razonable para evitar cargas excesivas
+    max_limit = 100
     if limit > max_limit:
-        limit = max_limit # Ajustar el límite si excede el máximo permitido
+        limit = max_limit
 
     try:
-        # Calcular el offset para la paginación
-        offset = (page - 1) * limit
+        # Fetch payments from 'pagos' table
+        query_inscripciones = pagos.select()
+        inscripcion_payments = await database.fetch_all(query_inscripciones)
+        inscripcion_payments_data = [dict(p) for p in inscripcion_payments]
+        for p in inscripcion_payments_data:
+            p['type'] = 'Inscripción'
 
-        # Construir la consulta para seleccionar todos los pagos, ordenados por fecha de creación descendente
-        query = pagos.select().order_by(pagos.c.date_created.desc()).offset(offset).limit(limit)
+        # Fetch payments from 'pagos_permisos' table
+        query_permisos = pagos_permisos.select()
+        permiso_payments = await database.fetch_all(query_permisos)
+        permiso_payments_data = [dict(p) for p in permiso_payments]
+        for p in permiso_payments_data:
+            p['type'] = 'Permiso'
+
+        # Combine and sort all payments
+        all_payments = inscripcion_payments_data + permiso_payments_data
         
-        # Ejecutar la consulta y obtener los pagos
-        fetched_pagos = await database.fetch_all(query)
+        # Sort by date_created in descending order
+        all_payments.sort(key=lambda x: x.get('date_created', datetime.datetime.min), reverse=True)
 
-        # Contar el total de registros para la paginación
-        total_records_query = select(func.count()).select_from(pagos) # <-- CAMBIO A select y func.count
-        total_records = await database.fetch_val(total_records_query)
-
-        # Convertir los resultados a una lista de diccionarios para la respuesta
-        pagos_data = [dict(p) for p in fetched_pagos]
+        # Apply pagination
+        total_records = len(all_payments)
+        start_index = (page - 1) * limit
+        end_index = start_index + limit
+        paginated_data = all_payments[start_index:end_index]
 
         return {
-            "data": pagos_data,
+            "data": paginated_data,
             "total_records": total_records,
             "page": page,
             "limit": limit,
@@ -348,6 +355,33 @@ async def get_cobros_enviados(page: int = 1, limit: int = 10):
     except Exception as e:
         logging.error(f"Error al obtener cobros enviados: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch sent payments: {e}")
+
+@app.get("/api/permiso-cobros-enviados")
+async def get_permiso_cobros_enviados(page: int = 1, limit: int = 10):
+    max_limit = 100
+    if limit > max_limit:
+        limit = max_limit
+
+    try:
+        offset = (page - 1) * limit
+        query = permisos_enviados.select().order_by(permisos_enviados.c.date_sent.desc()).offset(offset).limit(limit)
+        fetched_cobros = await database.fetch_all(query)
+
+        total_records_query = select(func.count()).select_from(permisos_enviados)
+        total_records = await database.fetch_val(total_records_query)
+
+        cobros_data = [dict(c) for c in fetched_cobros]
+
+        return {
+            "data": cobros_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_records + limit - 1) // limit
+        }
+    except Exception as e:
+        logging.error(f"Error al obtener cobros de permisos enviados: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sent permit payments: {e}")
 
 
 @app.post("/api/send-payment-link")

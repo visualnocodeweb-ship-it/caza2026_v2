@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchInscripciones, linkData, sendEmailAPI, sendPaymentLink, sendCredentialAPI, viewCredentialAPI } from '../utils/api'; // Import all APIs
+import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewCredentialAPI } from '../utils/api'; // Import all APIs
 import '../styles/App.css'; // Import global styles
 import '../styles/Responsive.css'; // Import responsive styles
 
@@ -72,44 +72,15 @@ const Inscripciones = () => {
     }
   };
 
-  const handleSendEmail = async (inscripcion, index) => {
+  const handleSendEmail = (inscripcion) => {
     if (!inscripcion.email) {
       alert('No hay dirección de correo para enviar.');
       return;
     }
-
-    setSendingEmail(prevStates => ({ ...prevStates, [index]: true }));
-    try {
-      const subject = `Contacto desde Panel Caza para ${inscripcion.nombre_establecimiento || 'tu establecimiento'}`;
-      const html_content = `
-          <p>Estimado/a ${inscripcion.nombre_establecimiento || 'cliente'},</p>
-          <p>Nos ponemos en contacto desde Caza 2026. Este es un correo de prueba.</p>
-          <p>Saludos cordiales,</p>
-          <p>El equipo de Caza 2026</p>
-          <br/>
-          <p><b>Detalles de la Inscripción:</b></p>
-          <ul>
-            <li><strong>Nombre de Contacto:</strong> ${inscripcion.nombre_contacto || 'N/A'}</li>
-            <li><strong>Razón Social:</strong> ${inscripcion.razon_social || 'N/A'}</li>
-            <li><strong>CUIT:</strong> ${inscripcion.cuit || 'N/A'}</li>
-            <li><strong>Teléfono:</strong> ${inscripcion.celular || 'N/A'}</li>
-            <li><strong>Email:</strong> ${inscripcion.email || 'N/A'}</li>
-            <li><strong>Fecha de Inscripción:</strong> ${inscripcion.Fecha || 'N/A'}</li>
-            ${inscripcion.pdf_link ? `<li><a href="${inscripcion.pdf_link}" target="_blank" rel="noopener noreferrer">Ver PDF de Inscripción</a></li>` : ''}
-          </ul>
-      `;
-
-      await sendEmailAPI({
-        to_email: inscripcion.email,
-        subject: subject,
-        html_content: html_content,
-      });
-      alert(`Correo enviado a ${inscripcion.email} con éxito.`);
-    } catch (err) {
-      alert(`Error al enviar correo a ${inscripcion.email}: ${err.message}`);
-    } finally {
-      setSendingEmail(prevStates => ({ ...prevStates, [index]: false }));
-    }
+    const to = inscripcion.email;
+    const subject = `Contacto desde Panel Caza para ${inscripcion.nombre_establecimiento || 'tu establecimiento'}`;
+    const body = `Estimado/a ${inscripcion.nombre_establecimiento || 'cliente'},\n\nNos ponemos en contacto desde Caza 2026.\n\nSaludos cordiales,\nEl equipo de Caza 2026`;
+    window.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const handleSendPayment = async (inscripcion, index) => {
@@ -252,11 +223,10 @@ const Inscripciones = () => {
                     {inscripcion.email && (
                       <>
                         <button
-                            onClick={() => handleSendEmail(inscripcion, index)}
-                            disabled={sendingEmail[index]}
+                            onClick={() => handleSendEmail(inscripcion)}
                             className="action-button btn-secondary"
                         >
-                            {sendingEmail[index] ? 'Enviando...' : 'Enviar Email'}
+                            Enviar Email
                         </button>
                         <button
                           onClick={() => handleSendPayment(inscripcion, index)}
