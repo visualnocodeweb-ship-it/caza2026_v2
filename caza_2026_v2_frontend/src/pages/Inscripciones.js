@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewCredentialAPI } from '../utils/api'; // Import all APIs
+import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewCredentialAPI, logSentItem, fetchSentItems } from '../utils/api'; // Import all APIs
 import '../styles/App.css'; // Import global styles
 import '../styles/Responsive.css'; // Import responsive styles
 
@@ -27,12 +27,17 @@ const Inscripciones = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchInscripciones(page, RECORDS_PER_PAGE); // Pasa page y limit
-      setInscripciones(response.data);
-      setTotalRecords(response.total_records);
-      setTotalPages(response.total_pages);
-      // Initialize all records as collapsed
-      const initialExpandedStates = response.data.reduce((acc, _, index) => {
+      const [inscripcionesResponse, sentItemsResponse] = await Promise.all([
+        fetchInscripciones(page, RECORDS_PER_PAGE),
+        fetchSentItems()
+      ]);
+      
+      setInscripciones(inscripcionesResponse.data);
+      setTotalRecords(inscripcionesResponse.total_records);
+      setTotalPages(inscripcionesResponse.total_pages);
+      setSentStatus(sentItemsResponse);
+      
+      const initialExpandedStates = inscripcionesResponse.data.reduce((acc, _, index) => {
         acc[index] = false;
         return acc;
       }, {});
@@ -98,6 +103,7 @@ const Inscripciones = () => {
         nombre_establecimiento: inscripcion.nombre_establecimiento,
         tipo_establecimiento: inscripcion['su establecimiento es'], // Add this line
       });
+      await logSentItem({ item_id: inscripcion.numero_inscripcion, item_type: 'inscripcion', sent_type: 'cobro' });
       alert(`Email de cobro enviado a ${inscripcion.email} con éxito.`);
       setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'cobro' }));
     } catch (err) {
@@ -123,6 +129,7 @@ const Inscripciones = () => {
         tipo_establecimiento: inscripcion['su establecimiento es'],
         email: inscripcion.email,
       });
+      await logSentItem({ item_id: inscripcion.numero_inscripcion, item_type: 'inscripcion', sent_type: 'credencial' });
       alert(`Credencial enviada a ${inscripcion.email} con éxito.`);
       setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'credencial' }));
     } catch (err) {
@@ -151,8 +158,13 @@ const Inscripciones = () => {
     }
   };
 
-  const handleSendPdf = (inscripcion) => {
-    setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'PDF' }));
+  const handleSendPdf = async (inscripcion) => {
+    try {
+      await logSentItem({ item_id: inscripcion.numero_inscripcion, item_type: 'inscripcion', sent_type: 'pdf' });
+      setSentStatus(prev => ({ ...prev, [inscripcion.numero_inscripcion]: 'pdf' }));
+    } catch (err) {
+      alert(`Error al registrar la acción: ${err.message}`);
+    }
   }
 
   const formatDate = (dateString) => {
@@ -253,9 +265,9 @@ const Inscripciones = () => {
                     )}
                   </div>
                   <div className="sent-status-container">
-                    {sentStatus[inscripcion.numero_inscripcion] && (
+                    {(inscripcion.sent_status || sentStatus[inscripcion.numero_inscripcion]) && (
                         <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                            Enviado: {sentStatus[inscripcion.numero_inscripcion]}
+                            Enviado: {inscripcion.sent_status || sentStatus[inscripcion.numero_inscripcion]}
                         </p>
                     )}
                   </div>

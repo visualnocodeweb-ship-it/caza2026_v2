@@ -18,7 +18,7 @@ from sqlalchemy import select, func # <-- NUEVA IMPORTACIÓN
 
 # --- Nuevas importaciones de base de datos ---
 from .database import database, engine, metadata
-from .models import pagos, cobros_enviados, pagos_permisos, permisos_enviados
+from .models import pagos, cobros_enviados, pagos_permisos, permisos_enviados, sent_items
 
 # --- Importaciones de servicios existentes ---
 from .sheets_services import read_sheet_data, get_sheets_service, GOOGLE_SHEET_ID, GOOGLE_SHEET_NAME, get_price_for_establishment, get_price_for_categoria, update_cobro_enviado_status
@@ -168,6 +168,11 @@ class SendCredentialRequest(BaseModel):
     tipo_establecimiento: str
     email: str
 
+class LogSentItemRequest(BaseModel):
+    item_id: str
+    item_type: str
+    sent_type: str
+
 # --- CORS ---
 origins = [
     "http://localhost:3000", "http://127.0.0.1:3000",
@@ -179,6 +184,31 @@ app.add_middleware(
 )
 
 # --- Endpoints ---
+
+@app.post("/api/log-sent-item")
+async def log_sent_item(request: LogSentItemRequest):
+    try:
+        query = sent_items.insert().values(
+            item_id=request.item_id,
+            item_type=request.item_type,
+            sent_type=request.sent_type,
+            date_sent=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(query)
+        return {"status": "success", "message": "Item logged successfully."}
+    except Exception as e:
+        logging.error(f"Error logging sent item: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to log sent item.")
+
+@app.get("/api/sent-items")
+async def get_sent_items():
+    try:
+        query = sent_items.select()
+        sent_items_records = await database.fetch_all(query)
+        return {record['item_id']: record for record in sent_items_records}
+    except Exception as e:
+        logging.error(f"Error fetching sent items: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch sent items.")
 
 @app.get("/api/stats/total-inscripciones")
 async def get_total_inscripciones():
@@ -224,17 +254,28 @@ async def get_inscripciones(page: int = 1, limit: int = 10):
         inscripciones_data = inscripciones_df.to_dict(orient="records")
 
         # 2. Obtener todos los IDs de inscripciones pagadas desde la base de datos
-        query = "SELECT inscription_id FROM pagos WHERE status = 'approved'"
-        paid_records = await database.fetch_all(query)
+        paid_query = "SELECT inscription_id FROM pagos WHERE status = 'approved'"
+        paid_records = await database.fetch_all(paid_query)
         paid_ids = {record['inscription_id'] for record in paid_records}
+
+        sent_query = sent_items.select().where(sent_items.c.item_type == 'inscripcion')
+        sent_records = await database.fetch_all(sent_query)
+        sent_status_map = {record['item_id']: record['sent_type'] for record in sent_records}
+
 
         # 3. Enriquecer los datos de la hoja con el estado de pago de la base de datos
         for inscripcion in inscripciones_data:
-            if inscripcion.get('numero_inscripcion') in paid_ids:
+            inscripcion_id = inscripcion.get('numero_inscripcion')
+            if inscripcion_id in paid_ids:
                 inscripcion['Estado de Pago'] = 'Pagado'
             else:
                 inscripcion['Estado de Pago'] = 'Pendiente'
-        
+            
+            if inscripcion_id in sent_status_map:
+                inscripcion['sent_status'] = sent_status_map[inscripcion_id]
+            else:
+                inscripcion['sent_status'] = None
+
         # 4. Paginación y enriquecimiento con PDFs (como antes)
         total_records = len(inscripciones_data)
         start_index = (page - 1) * limit
@@ -267,16 +308,25 @@ async def get_permisos(page: int = 1, limit: int = 10):
         permisos_data = permisos_df.to_dict(orient="records")
 
         # 2. Obtener todos los IDs de permisos pagados desde la base de datos
-        query = "SELECT permiso_id FROM pagos_permisos WHERE status = 'approved'"
-        paid_records = await database.fetch_all(query)
+        paid_query = "SELECT permiso_id FROM pagos_permisos WHERE status = 'approved'"
+        paid_records = await database.fetch_all(paid_query)
         paid_ids = {record['permiso_id'] for record in paid_records}
+
+        sent_query = sent_items.select().where(sent_items.c.item_type == 'permiso')
+        sent_records = await database.fetch_all(sent_query)
+        sent_status_map = {record['item_id']: record['sent_type'] for record in sent_records}
 
         # 3. Enriquecer los datos de la hoja con el estado de pago de la base de datos
         for permiso in permisos_data:
-            if permiso.get('ID') in paid_ids:
+            permiso_id = permiso.get('ID')
+            if permiso_id in paid_ids:
                 permiso['Estado de Pago'] = 'Pagado'
             else:
                 permiso['Estado de Pago'] = 'Pendiente'
+            if permiso_id in sent_status_map:
+                permiso['sent_status'] = sent_status_map[permiso_id]
+            else:
+                permiso['sent_status'] = None
         
         # 4. Paginación y enriquecimiento con PDFs
         total_records = len(permisos_data)

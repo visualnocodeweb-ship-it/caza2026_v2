@@ -314,3 +314,37 @@ export const fetchRecaudacionesStats = async () => {
   }
 };
 
+export const logSentItem = async (itemData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/log-sent-item`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(itemData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error logging sent item:", error);
+    throw error;
+  }
+};
+
+export const fetchSentItems = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sent-items`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching sent items:", error);
+    return {};
+  }
+};

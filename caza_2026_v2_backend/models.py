@@ -46,3 +46,13 @@ permisos_enviados = sqlalchemy.Table(
     sqlalchemy.Column("email", sqlalchemy.String),
     sqlalchemy.Column("date_sent", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
 )
+
+sent_items = sqlalchemy.Table(
+    "sent_items",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("item_id", sqlalchemy.String, index=True),
+    sqlalchemy.Column("item_type", sqlalchemy.String), # 'inscripcion' or 'permiso'
+    sqlalchemy.Column("sent_type", sqlalchemy.String), # 'cobro', 'credencial', 'pdf'
+    sqlalchemy.Column("date_sent", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
+)

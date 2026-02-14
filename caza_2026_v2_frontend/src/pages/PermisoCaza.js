@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchPermisos, sendPermisoPaymentLink, sendPermisoEmailAPI } from '../utils/api'; // Updated API imports
+import { fetchPermisos, sendPermisoPaymentLink, sendPermisoEmailAPI, logSentItem, fetchSentItems } from '../utils/api'; // Updated API imports
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -22,11 +22,17 @@ const PermisoCaza = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchPermisos(page, RECORDS_PER_PAGE);
-      setPermisos(response.data);
-      setTotalRecords(response.total_records);
-      setTotalPages(response.total_pages);
-      const initialExpandedStates = response.data.reduce((acc, _, index) => {
+      const [permisosResponse, sentItemsResponse] = await Promise.all([
+        fetchPermisos(page, RECORDS_PER_PAGE),
+        fetchSentItems()
+      ]);
+
+      setPermisos(permisosResponse.data);
+      setTotalRecords(permisosResponse.total_records);
+      setTotalPages(permisosResponse.total_pages);
+      setSentStatus(sentItemsResponse);
+
+      const initialExpandedStates = permisosResponse.data.reduce((acc, _, index) => {
         acc[index] = false;
         return acc;
       }, {});
@@ -78,6 +84,7 @@ const PermisoCaza = () => {
         nombre_apellido: permiso['Nombre y Apellido'],
         categoria: permiso['Categoría'],
       });
+      await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'cobro' });
       alert(`Email de cobro enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
       setSentStatus(prev => ({ ...prev, [permiso.ID]: 'cobro' }));
     } catch (err) {
@@ -100,6 +107,7 @@ const PermisoCaza = () => {
             email: permiso['Dirección de correo electrónico'],
             nombre_apellido: permiso['Nombre y Apellido'],
         });
+        await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'permiso' });
         alert(`Permiso enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
         setSentStatus(prev => ({ ...prev, [permiso.ID]: 'permiso' }));
     } catch (err) {
@@ -109,8 +117,13 @@ const PermisoCaza = () => {
     }
   };
 
-  const handleSendPdf = (permiso) => {
-    setSentStatus(prev => ({ ...prev, [permiso.ID]: 'PDF' }));
+  const handleSendPdf = async (permiso) => {
+    try {
+      await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'pdf' });
+      setSentStatus(prev => ({ ...prev, [permiso.ID]: 'pdf' }));
+    } catch (err) {
+      alert(`Error al registrar la acción: ${err.message}`);
+    }
   }
 
   const formatDate = (dateString) => {
@@ -199,9 +212,9 @@ const PermisoCaza = () => {
                     )}
                   </div>
                   <div className="sent-status-container">
-                    {sentStatus[permiso.ID] && (
+                    {(permiso.sent_status || sentStatus[permiso.ID]) && (
                         <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                            Enviado: {sentStatus[permiso.ID]}
+                            Enviado: {permiso.sent_status || sentStatus[permiso.ID]}
                         </p>
                     )}
                   </div>
