@@ -48,10 +48,10 @@ def read_sheet_data(sheet_id, sheet_name):
         num_headers = len(headers)
         processed_rows = []
         for row in data_rows:
-            processed_row = [cell.strip() for cell in row]
-            while len(processed_row) < num_headers:
-                processed_row.append('')
-            processed_rows.append(processed_row[:num_headers])
+            # Pad the row with empty strings if it has fewer columns than headers
+            while len(row) < num_headers:
+                row.append('')
+            processed_rows.append(row[:num_headers])
 
         if not processed_rows:
             return pd.DataFrame(columns=headers)
