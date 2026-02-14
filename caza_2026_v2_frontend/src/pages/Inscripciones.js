@@ -203,7 +203,7 @@ const Inscripciones = () => {
                 <div className="card-details">
                   <p><strong>Email:</strong> {inscripcion.email || 'N/A'}</p>
                   <p><strong>Establecimiento:</strong> {inscripcion['su establecimiento es'] || 'N/A'}</p>
-                  <p><strong>Celular:</strong> {inscripcion.celular ? <a href={`https://wa.me/${inscripcion.celular.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">{inscripcion.celular}</a> : 'N/A'}</p>
+                  <p><strong>Celular:</strong> {inscripcion.celular ? <a href={`https://wa.me/${inscripcion.celular.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-button"><i className="fab fa-whatsapp"></i> {inscripcion.celular}</a> : 'N/A'}</p>
                   <p><strong>Fecha:</strong> {formatDate(inscripcion.fecha_creacion)}</p>
                   <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(inscripcion['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
                   

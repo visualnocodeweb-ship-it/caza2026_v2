@@ -292,3 +292,22 @@
   font-size: 1em;
   min-width: 250px;
 }
+
+/* WhatsApp Button Styles */
+.whatsapp-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #25d366; /* WhatsApp green */
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.whatsapp-button:hover {
+  text-decoration: underline;
+}
+
+.whatsapp-button .fab.fa-whatsapp {
+  font-size: 1.2em; /* Adjust size as needed */
+}
+
