@@ -193,7 +193,7 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
         'Criadero': 'Establecimientos Criadero'
     }
 
-    actividad =ividad_map.get(tipo_establecimiento)
+    actividad = actividad_map.get(tipo_establecimiento)
     if not actividad:
         raise ValueError(f"Tipo de establecimiento no válido: {tipo_establecimiento}")
 
