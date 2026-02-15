@@ -186,6 +186,7 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
         # Buscar PDFs de inscripciones
         inscripciones_folder_id = "1a1VEA7I5N5sMvqLQWuoDpQ3WSiayQbK9"
         pdfs = drive_services.list_pdfs_in_folder(inscripciones_folder_id)
+        await log_activity('INFO', 'pdfs_found', f"PDFs de inscripciones encontrados: {len(pdfs)}")
         pdf_dict = {pdf['name'].replace('.pdf', ''): pdf.get('webViewLink', '') for pdf in pdfs if 'name' in pdf}
 
         # Enriquecer con estado de pago desde la base de datos
@@ -298,6 +299,7 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         # Buscar PDFs de permisos
         permisos_folder_id = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
         pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
+        await log_activity('INFO', 'pdfs_found', f"PDFs de permisos encontrados: {len(pdfs)}")
         pdf_dict = {pdf['name'].replace('.pdf', ''): pdf.get('webViewLink', '') for pdf in pdfs if 'name' in pdf}
 
         # Enriquecer con estado de pago desde la base de datos
