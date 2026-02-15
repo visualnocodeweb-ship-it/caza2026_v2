@@ -435,30 +435,62 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
 
             # Registrar el pago en la base de datos
             if external_reference and "inscr" in external_reference.lower():  # Es una inscripción
-                query = pagos.insert().values(
-                    payment_id=int(id),
-                    inscription_id=external_reference,
-                    status=status_payment,
-                    status_detail=status_detail,
-                    amount=amount,
-                    email=payer_email,
-                    date_created=datetime.datetime.now(datetime.timezone.utc)
-                )
-                await database.execute(query)
-                await log_activity('INFO', 'inscripcion_pago_guardado', f"Pago {id} para inscripción {external_reference} guardado con status {status_payment}")
+                # Verificar si el pago ya existe
+                existing_query = select(pagos).where(pagos.c.payment_id == int(id))
+                existing_pago = await database.fetch_one(existing_query)
+
+                if existing_pago:
+                    # Actualizar el pago existente
+                    update_query = pagos.update().where(pagos.c.payment_id == int(id)).values(
+                        status=status_payment,
+                        status_detail=status_detail,
+                        amount=amount,
+                        email=payer_email
+                    )
+                    await database.execute(update_query)
+                    await log_activity('INFO', 'inscripcion_pago_actualizado', f"Pago {id} para inscripción {external_reference} actualizado a status {status_payment}")
+                else:
+                    # Insertar nuevo pago
+                    insert_query = pagos.insert().values(
+                        payment_id=int(id),
+                        inscription_id=external_reference,
+                        status=status_payment,
+                        status_detail=status_detail,
+                        amount=amount,
+                        email=payer_email,
+                        date_created=datetime.datetime.now(datetime.timezone.utc)
+                    )
+                    await database.execute(insert_query)
+                    await log_activity('INFO', 'inscripcion_pago_creado', f"Pago {id} para inscripción {external_reference} creado con status {status_payment}")
 
             elif external_reference and "per" in external_reference.lower():  # Es un permiso
-                query = pagos_permisos.insert().values(
-                    payment_id=int(id),
-                    permiso_id=external_reference,
-                    status=status_payment,
-                    status_detail=status_detail,
-                    amount=amount,
-                    email=payer_email,
-                    date_created=datetime.datetime.now(datetime.timezone.utc)
-                )
-                await database.execute(query)
-                await log_activity('INFO', 'permiso_pago_guardado', f"Pago {id} para permiso {external_reference} guardado con status {status_payment}")
+                # Verificar si el pago ya existe
+                existing_query = select(pagos_permisos).where(pagos_permisos.c.payment_id == int(id))
+                existing_pago = await database.fetch_one(existing_query)
+
+                if existing_pago:
+                    # Actualizar el pago existente
+                    update_query = pagos_permisos.update().where(pagos_permisos.c.payment_id == int(id)).values(
+                        status=status_payment,
+                        status_detail=status_detail,
+                        amount=amount,
+                        email=payer_email
+                    )
+                    await database.execute(update_query)
+                    await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {id} para permiso {external_reference} actualizado a status {status_payment}")
+                else:
+                    # Insertar nuevo pago
+                    insert_query = pagos_permisos.insert().values(
+                        payment_id=int(id),
+                        permiso_id=external_reference,
+                        status=status_payment,
+                        status_detail=status_detail,
+                        amount=amount,
+                        email=payer_email,
+                        date_created=datetime.datetime.now(datetime.timezone.utc)
+                    )
+                    await database.execute(insert_query)
+                    await log_activity('INFO', 'permiso_pago_creado', f"Pago {id} para permiso {external_reference} creado con status {status_payment}")
 
         return {"status": "ok"}
 
