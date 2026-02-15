@@ -568,7 +568,6 @@ async def log_sent_item_endpoint(item_data: SentItemEntry):
             item_id=item_data.item_id,
             item_type=item_data.item_type,
             sent_type=item_data.sent_type,
-            email=item_data.email,
             date_sent=datetime.datetime.now(datetime.timezone.utc)
         )
         await database.execute(query)
