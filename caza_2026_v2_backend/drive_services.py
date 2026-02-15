@@ -55,7 +55,7 @@ def list_pdfs_in_folder(folder_id):
             ).execute()
 
             for file in response.get('files', []):
-                pdfs.append({'id': file.get('id'), 'name': file.get('name'), 'link': file.get('webViewLink')})
+                pdfs.append({'id': file.get('id'), 'name': file.get('name'), 'webViewLink': file.get('webViewLink')})
 
             page_token = response.get('nextPageToken', None)
             if page_token is None:
