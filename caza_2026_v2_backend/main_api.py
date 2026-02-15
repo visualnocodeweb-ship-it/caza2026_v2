@@ -175,9 +175,34 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
         total_records = len(df)
         offset = (page - 1) * limit
         total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
-        
+
         # Aplicar paginación al DataFrame
         paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+
+        # Enriquecer con estado de pago desde la base de datos
+        for inscripcion in paginated_data:
+            numero_inscripcion = inscripcion.get('numero_inscripcion')
+            if numero_inscripcion:
+                # Buscar si hay un pago aprobado en la base de datos
+                pago_query = select(pagos).where(
+                    pagos.c.inscription_id == numero_inscripcion,
+                    pagos.c.status == 'approved'
+                )
+                pago_result = await database.fetch_one(pago_query)
+
+                if pago_result:
+                    inscripcion['Estado de Pago'] = 'Pagado'
+                    inscripcion['payment_id'] = pago_result['payment_id']
+                    inscripcion['fecha_pago'] = pago_result['date_created'].isoformat() if pago_result['date_created'] else None
+                else:
+                    # Verificar si existe algún pago (aunque no esté aprobado)
+                    any_pago_query = select(pagos).where(pagos.c.inscription_id == numero_inscripcion)
+                    any_pago = await database.fetch_one(any_pago_query)
+
+                    if any_pago:
+                        inscripcion['Estado de Pago'] = any_pago['status'].capitalize()
+                    else:
+                        inscripcion['Estado de Pago'] = 'Pendiente'
 
         return {
             "data": paginated_data,
@@ -253,8 +278,33 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         total_records = len(df)
         offset = (page - 1) * limit
         total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
-        
+
         paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+
+        # Enriquecer con estado de pago desde la base de datos
+        for permiso in paginated_data:
+            permiso_id = permiso.get('ID')
+            if permiso_id:
+                # Buscar si hay un pago aprobado en la base de datos
+                pago_query = select(pagos_permisos).where(
+                    pagos_permisos.c.permiso_id == permiso_id,
+                    pagos_permisos.c.status == 'approved'
+                )
+                pago_result = await database.fetch_one(pago_query)
+
+                if pago_result:
+                    permiso['Estado de Pago'] = 'Pagado'
+                    permiso['payment_id'] = pago_result['payment_id']
+                    permiso['fecha_pago'] = pago_result['date_created'].isoformat() if pago_result['date_created'] else None
+                else:
+                    # Verificar si existe algún pago (aunque no esté aprobado)
+                    any_pago_query = select(pagos_permisos).where(pagos_permisos.c.permiso_id == permiso_id)
+                    any_pago = await database.fetch_one(any_pago_query)
+
+                    if any_pago:
+                        permiso['Estado de Pago'] = any_pago['status'].capitalize()
+                    else:
+                        permiso['Estado de Pago'] = 'Pendiente'
 
         return {
             "data": paginated_data,
@@ -395,15 +445,7 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
                     date_created=datetime.datetime.now(datetime.timezone.utc)
                 )
                 await database.execute(query)
-
-                # Actualizar estado en Google Sheets solo si está aprobado
-                if status_payment == "approved":
-                    sheet_id = os.getenv("GOOGLE_SHEET_ID")
-                    if sheet_id:
-                        sheets_services.update_payment_status(
-                            sheet_id, "inscrip", external_reference, "Pagado"
-                        )
-                await log_activity('INFO', 'inscripcion_pago_actualizado', f"Pago {id} para inscripción {external_reference} actualizado a {status_payment}")
+                await log_activity('INFO', 'inscripcion_pago_guardado', f"Pago {id} para inscripción {external_reference} guardado con status {status_payment}")
 
             elif external_reference and "per" in external_reference.lower():  # Es un permiso
                 query = pagos_permisos.insert().values(
@@ -416,15 +458,7 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
                     date_created=datetime.datetime.now(datetime.timezone.utc)
                 )
                 await database.execute(query)
-
-                # Actualizar estado en Google Sheets solo si está aprobado
-                if status_payment == "approved":
-                    sheet_id = os.getenv("GOOGLE_SHEET_ID")
-                    if sheet_id:
-                        sheets_services.update_payment_status(
-                            sheet_id, "permisos", external_reference, "Pagado"
-                        )
-                await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {id} para permiso {external_reference} actualizado a {status_payment}")
+                await log_activity('INFO', 'permiso_pago_guardado', f"Pago {id} para permiso {external_reference} guardado con status {status_payment}")
 
         return {"status": "ok"}
 
