@@ -246,28 +246,14 @@ const PagosRealizados = () => {
         <button onClick={() => setView('realizados')} className={view === 'realizados' ? 'active' : ''}>
           Pagos Realizados
         </button>
-        <button onClick={() => setView('enviados_inscripciones')} className={view === 'enviados_inscripciones' ? 'active' : ''}>
-          Inscripciones (Enviados)
-        </button>
-        <button onClick={() => setView('enviados_permisos')} className={view === 'enviados_permisos' ? 'active' : ''}>
-          Permisos (Enviados)
-        </button>
         <button onClick={() => setView('logs')} className={view === 'logs' ? 'active' : ''}>
           Logs
         </button>
       </div>
       <h1 className="title">
-        {view === 'realizados' ? 'Pagos Realizados' : 
-         view === 'enviados_inscripciones' ? 'Inscripciones (Cobros Enviados)' : 
-         view === 'enviados_permisos' ? 'Permisos (Cobros Enviados)' :
-         'Registro de Actividad'
-        }
+        {view === 'realizados' ? 'Pagos Realizados' : 'Registro de Actividad'}
       </h1>
-      {view === 'realizados' ? renderPaymentsTable() : 
-       view === 'enviados_inscripciones' ? renderCobrosTable() : 
-       view === 'enviados_permisos' ? renderPermisoCobrosTable() :
-       <Logs />
-      }
+      {view === 'realizados' ? renderPaymentsTable() : <Logs />}
     </div>
   );
 };
