@@ -503,6 +503,70 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
         # No lanzar excepción para que MercadoPago no reintente
         return {"status": "error", "message": str(e)}
 
+@app.post("/api/pagos/fetch/{payment_id}")
+async def fetch_payment_from_mercadopago(payment_id: str):
+    """Trae un pago específico de MercadoPago y lo guarda en la DB"""
+    await log_activity('INFO', 'fetch_payment', f"Consultando pago {payment_id} en MercadoPago")
+    try:
+        payment_info = mercadopago_services.sdk.payment().get(payment_id)
+
+        if payment_info.get("status") != 200:
+            raise HTTPException(status_code=404, detail=f"Pago no encontrado en MercadoPago")
+
+        payment = payment_info["response"]
+        external_reference = payment.get("external_reference")
+        status_payment = payment.get("status")
+        status_detail = payment.get("status_detail")
+        amount = payment.get("transaction_amount")
+        payer_email = payment.get("payer", {}).get("email")
+        date_created = payment.get("date_created")
+
+        if not external_reference:
+            raise HTTPException(status_code=400, detail="Pago sin referencia externa")
+
+        # Guardar según tipo
+        if "inscr" in external_reference.lower():
+            existing = await database.fetch_one(select(pagos).where(pagos.c.payment_id == int(payment_id)))
+            if existing:
+                return {"status": "already_exists", "payment_id": payment_id}
+
+            await database.execute(pagos.insert().values(
+                payment_id=int(payment_id),
+                inscription_id=external_reference,
+                status=status_payment,
+                status_detail=status_detail,
+                amount=amount,
+                email=payer_email,
+                date_created=date_created
+            ))
+            await log_activity('INFO', 'payment_fetched', f"Pago {payment_id} guardado para inscripción {external_reference}")
+            return {"status": "ok", "type": "inscripcion", "payment_id": payment_id}
+
+        elif "pc" in external_reference.lower() or "per" in external_reference.lower():
+            existing = await database.fetch_one(select(pagos_permisos).where(pagos_permisos.c.payment_id == int(payment_id)))
+            if existing:
+                return {"status": "already_exists", "payment_id": payment_id}
+
+            await database.execute(pagos_permisos.insert().values(
+                payment_id=int(payment_id),
+                permiso_id=external_reference,
+                status=status_payment,
+                status_detail=status_detail,
+                amount=amount,
+                email=payer_email,
+                date_created=date_created
+            ))
+            await log_activity('INFO', 'payment_fetched', f"Pago {payment_id} guardado para permiso {external_reference}")
+            return {"status": "ok", "type": "permiso", "payment_id": payment_id}
+
+        raise HTTPException(status_code=400, detail="Tipo de referencia no reconocido")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'fetch_payment_failed', f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/pagos", response_model=Dict[str, Any])
 async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
     await log_activity('INFO', 'get_pagos_request', f'Solicitud de pagos - Página: {page}, Límite: {limit}')
