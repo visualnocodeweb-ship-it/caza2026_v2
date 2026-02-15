@@ -37,15 +37,24 @@ def get_google_credentials():
                 f"Error al cargar credenciales desde GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: {e}"
             )
     else:
-        if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            raise FileNotFoundError(
-                f"El archivo de clave de la cuenta de servicio '{SERVICE_ACCOUNT_FILE}' no se encontró "
-                "y la variable de entorno GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON no está configurada. "
-                "Asegúrate de haber configurado uno de ellos."
-            )
+        # Intentar cargar desde el archivo service_account.json
+        # Primero, intentar en el directorio de trabajo actual
+        file_path = SERVICE_ACCOUNT_FILE
+        if not os.path.exists(file_path):
+            # Si no se encuentra, intentar en la ruta común de secretos de Render
+            render_secret_path = os.path.join("/etc/secrets", SERVICE_ACCOUNT_FILE)
+            if os.path.exists(render_secret_path):
+                file_path = render_secret_path
+            else:
+                raise FileNotFoundError(
+                    f"El archivo de clave de la cuenta de servicio '{SERVICE_ACCOUNT_FILE}' no se encontró "
+                    "ni en el directorio actual ni en /etc/secrets/ "
+                    "y la variable de entorno GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON no está configurada. "
+                    "Asegúrate de haber configurado uno de ellos."
+                )
 
         creds = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES
+            file_path, scopes=SCOPES
         )
         return creds
 
