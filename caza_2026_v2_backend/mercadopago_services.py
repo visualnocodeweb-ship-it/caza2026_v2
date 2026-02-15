@@ -54,7 +54,23 @@ def create_payment_preference(title: str, price: float, external_reference: str,
 
         # Crear la preferencia en MercadoPago
         preference_response = sdk.preference().create(preference_data)
-        preference = preference_response["response"]
+
+        # Debug: Imprimir la respuesta completa
+        print(f"DEBUG - Respuesta completa de MercadoPago: {preference_response}")
+
+        # Verificar si la respuesta fue exitosa
+        if preference_response.get("status") not in [200, 201]:
+            error_msg = preference_response.get("response", {}).get("message", "Error desconocido")
+            raise Exception(f"MercadoPago error: {error_msg}")
+
+        # La respuesta puede estar en diferentes niveles según la versión del SDK
+        preference = preference_response.get("response")
+        if not preference:
+            raise Exception(f"No se encontró 'response' en la respuesta de MercadoPago: {preference_response}")
+
+        # Verificar que tenga los campos necesarios
+        if "id" not in preference or "init_point" not in preference:
+            raise Exception(f"Respuesta de MercadoPago incompleta. Respuesta: {preference}")
 
         print(f"Preferencia de pago creada. ID: {preference['id']}")
 
@@ -67,6 +83,8 @@ def create_payment_preference(title: str, price: float, external_reference: str,
 
     except Exception as e:
         print(f"Error al crear preferencia de pago: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "success": False,
             "init_point": None,
