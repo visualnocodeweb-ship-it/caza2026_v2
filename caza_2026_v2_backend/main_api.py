@@ -55,6 +55,30 @@ class SentItemEntry(BaseModel):
     email: Optional[str] = None
     date_sent: datetime.datetime
 
+class SendPaymentLinkRequest(BaseModel):
+    inscription_id: str
+    email: str
+    nombre_establecimiento: Optional[str] = None
+    tipo_establecimiento: Optional[str] = None
+
+class SendCredentialRequest(BaseModel):
+    numero_inscripcion: str
+    nombre_establecimiento: str
+    razon_social: Optional[str] = None
+    cuit: Optional[str] = None
+    tipo_establecimiento: Optional[str] = None
+    email: str
+
+class SendPermisoPaymentLinkRequest(BaseModel):
+    permiso_id: str
+    email: str
+    nombre_apellido: str
+    categoria: Optional[str] = None
+
+class SendPermisoEmailRequest(BaseModel):
+    permiso_id: str
+    email: str
+    nombre_apellido: str
 
 # --- Logging Centralizado ---
 async def log_activity(level: str, event: str, details: str = ""):
@@ -425,10 +449,6 @@ async def get_total_inscripciones():
         df = sheets_services.read_sheet_data(sheet_id, inscripciones_tab_name)
         
         total_inscripciones = len(df) if not df.empty else 0
-        
-        # --- AÑADIR ESTE LOG DE DEPURACIÓN ---
-        await log_activity('DEBUG', 'total_inscripciones_debug', f"DataFrame len: {len(df) if not df.empty else 0}, Total Inscripciones a retornar: {total_inscripciones}")
-        # --- FIN LOG DE DEPURACIÓN ---
 
         return {"total_inscripciones": total_inscripciones}
     except Exception as e:
@@ -540,14 +560,242 @@ async def get_recaudaciones_stats():
         await log_activity('ERROR', 'get_recaudaciones_stats_failed', f"Error al obtener estadísticas de recaudaciones: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener estadísticas de recaudaciones: {e}")
 
-# Rutas adicionales para funcionalidad específica de email o drive pueden ser añadidas aquí.
-# Por ejemplo:
-# @app.post("/api/send-credencial")
-# async def send_credencial(...):
-#     # Lógica para generar credencial y enviarla por email
-#     pass
+@app.post("/api/log-sent-item", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
+async def log_sent_item_endpoint(item_data: SentItemEntry):
+    await log_activity('INFO', 'log_sent_item_request', f'Registrando ítem enviado: {item_data.item_type} - {item_data.item_id} - {item_data.sent_type}')
+    try:
+        query = sent_items.insert().values(
+            item_id=item_data.item_id,
+            item_type=item_data.item_type,
+            sent_type=item_data.sent_type,
+            email=item_data.email,
+            date_sent=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(query)
+        return {"message": "Ítem enviado registrado exitosamente."}
+    except Exception as e:
+        await log_activity('ERROR', 'log_sent_item_failed', f"Error al registrar ítem enviado: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al registrar ítem enviado: {e}")
 
-# @app.get("/api/download-pdf/{file_id}")
-# async def download_permiso_pdf(file_id: str):
-#     # Lógica para descargar PDF de Drive
-#     pass
+@app.post("/api/send-payment-link", response_model=Dict[str, str]) # NUEVO
+async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
+    await log_activity('INFO', 'send_payment_link_request', f'Solicitud para enviar link de pago a: {request_data.email} para inscripción: {request_data.inscription_id}')
+    try:
+        # TODO: Generar link de pago real (integración con MercadoPago o similar)
+        # Por ahora, un placeholder
+        payment_link = "https://example.com/mock_payment_link/inscripciones/" + request_data.inscription_id 
+
+        subject = f"Enlace de pago para su inscripción {request_data.inscription_id}"
+        html_content = f"""
+        <html>
+            <body>
+                <p>Estimado/a {request_data.nombre_establecimiento},</p>
+                <p>Adjunto encontrará el enlace para realizar el pago de su inscripción <b>{request_data.inscription_id}</b> ({request_data.tipo_establecimiento}).</p>
+                <p>Puede realizar el pago haciendo click en el siguiente enlace: <a href="{payment_link}">{payment_link}</a></p>
+                <p>Gracias.</p>
+                <p>El equipo de Caza 2026</p>
+            </body>
+        </html>
+        """
+        sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+
+        email_sent = email_services.send_simple_email(
+            to_email=request_data.email,
+            subject=subject,
+            html_content=html_content,
+            sender_email=sender_email
+        )
+
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro.")
+        
+        return {"message": "Email de cobro enviado exitosamente."}
+    except Exception as e:
+        await log_activity('ERROR', 'send_payment_link_failed', f"Error al enviar link de pago: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar link de pago: {e}")
+
+@app.post("/api/send-credential", response_model=Dict[str, str])
+async def send_credential_endpoint(request_data: SendCredentialRequest):
+    await log_activity('INFO', 'send_credential_request', f'Solicitud para enviar credencial a: {request_data.email} para inscripción: {request_data.numero_inscripcion}')
+    try:
+        subject = f"Credencial de Inscripción {request_data.numero_inscripcion}"
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Credencial de Inscripción</h2>
+                <p>Estimado/a <strong>{request_data.nombre_establecimiento}</strong>,</p>
+                <p>Adjunto encontrará su credencial de inscripción:</p>
+                <div style="border: 2px solid #333; padding: 15px; margin: 20px 0; background-color: #f9f9f9;">
+                    <p><strong>Número de Inscripción:</strong> {request_data.numero_inscripcion}</p>
+                    <p><strong>Establecimiento:</strong> {request_data.nombre_establecimiento}</p>
+                    <p><strong>Razón Social:</strong> {request_data.razon_social or 'N/A'}</p>
+                    <p><strong>CUIT:</strong> {request_data.cuit or 'N/A'}</p>
+                    <p><strong>Tipo:</strong> {request_data.tipo_establecimiento or 'N/A'}</p>
+                </div>
+                <p>Gracias por su inscripción.</p>
+                <p>El equipo de Caza 2026</p>
+            </body>
+        </html>
+        """
+        sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+
+        email_sent = email_services.send_simple_email(
+            to_email=request_data.email,
+            subject=subject,
+            html_content=html_content,
+            sender_email=sender_email
+        )
+
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar la credencial por email.")
+
+        return {"message": "Credencial enviada exitosamente."}
+    except Exception as e:
+        await log_activity('ERROR', 'send_credential_failed', f"Error al enviar credencial: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar credencial: {e}")
+
+@app.get("/api/view-credential/{numero_inscripcion}", response_class=HTMLResponse)
+async def view_credential_endpoint(numero_inscripcion: str):
+    await log_activity('INFO', 'view_credential_request', f'Solicitud para ver credencial de inscripción: {numero_inscripcion}')
+    try:
+        # Obtener datos de la inscripción desde Google Sheets
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        inscripciones_tab_name = "inscrip"
+
+        if not sheet_id:
+            raise ValueError("GOOGLE_SHEET_ID no configurado.")
+
+        df = sheets_services.read_sheet_data(sheet_id, inscripciones_tab_name)
+
+        # Buscar la inscripción específica
+        inscripcion = df[df['numero_inscripcion'] == numero_inscripcion]
+
+        if inscripcion.empty:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Inscripción {numero_inscripcion} no encontrada.")
+
+        inscripcion_data = inscripcion.iloc[0]
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Credencial - {numero_inscripcion}</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; padding: 40px; background-color: #f5f5f5; }}
+                    .credential {{
+                        max-width: 600px;
+                        margin: 0 auto;
+                        background: white;
+                        padding: 30px;
+                        border: 3px solid #333;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    }}
+                    h1 {{ color: #333; text-align: center; }}
+                    .field {{ margin: 15px 0; }}
+                    .field strong {{ display: inline-block; width: 180px; }}
+                    .print-btn {{
+                        display: block;
+                        width: 200px;
+                        margin: 20px auto;
+                        padding: 10px;
+                        background-color: #4CAF50;
+                        color: white;
+                        border: none;
+                        cursor: pointer;
+                        font-size: 16px;
+                    }}
+                    .print-btn:hover {{ background-color: #45a049; }}
+                    @media print {{ .print-btn {{ display: none; }} }}
+                </style>
+            </head>
+            <body>
+                <div class="credential">
+                    <h1>Credencial de Inscripción</h1>
+                    <div class="field"><strong>Número:</strong> {inscripcion_data.get('numero_inscripcion', 'N/A')}</div>
+                    <div class="field"><strong>Establecimiento:</strong> {inscripcion_data.get('nombre_establecimiento', 'N/A')}</div>
+                    <div class="field"><strong>Razón Social:</strong> {inscripcion_data.get('razon_social', 'N/A')}</div>
+                    <div class="field"><strong>CUIT:</strong> {inscripcion_data.get('cuit', 'N/A')}</div>
+                    <div class="field"><strong>Tipo:</strong> {inscripcion_data.get('su establecimiento es', 'N/A')}</div>
+                    <div class="field"><strong>Email:</strong> {inscripcion_data.get('email', 'N/A')}</div>
+                    <div class="field"><strong>Celular:</strong> {inscripcion_data.get('celular', 'N/A')}</div>
+                    <button class="print-btn" onclick="window.print()">Imprimir Credencial</button>
+                </div>
+            </body>
+        </html>
+        """
+
+        return HTMLResponse(content=html_content)
+    except Exception as e:
+        await log_activity('ERROR', 'view_credential_failed', f"Error al ver credencial: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al ver credencial: {e}")
+
+@app.post("/api/send-permiso-payment-link", response_model=Dict[str, str])
+async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLinkRequest):
+    await log_activity('INFO', 'send_permiso_payment_link_request', f'Solicitud para enviar link de pago de permiso a: {request_data.email} para permiso: {request_data.permiso_id}')
+    try:
+        # TODO: Generar link de pago real (integración con MercadoPago o similar)
+        payment_link = "https://example.com/mock_payment_link/permisos/" + request_data.permiso_id
+
+        subject = f"Enlace de pago para su permiso de caza {request_data.permiso_id}"
+        html_content = f"""
+        <html>
+            <body>
+                <p>Estimado/a {request_data.nombre_apellido},</p>
+                <p>Adjunto encontrará el enlace para realizar el pago de su permiso de caza <b>{request_data.permiso_id}</b> ({request_data.categoria}).</p>
+                <p>Puede realizar el pago haciendo click en el siguiente enlace: <a href="{payment_link}">{payment_link}</a></p>
+                <p>Gracias.</p>
+                <p>El equipo de Caza 2026</p>
+            </body>
+        </html>
+        """
+        sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+
+        email_sent = email_services.send_simple_email(
+            to_email=request_data.email,
+            subject=subject,
+            html_content=html_content,
+            sender_email=sender_email
+        )
+
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro del permiso.")
+
+        return {"message": "Email de cobro de permiso enviado exitosamente."}
+    except Exception as e:
+        await log_activity('ERROR', 'send_permiso_payment_link_failed', f"Error al enviar link de pago de permiso: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar link de pago de permiso: {e}")
+
+@app.post("/api/send-permiso-email", response_model=Dict[str, str])
+async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
+    await log_activity('INFO', 'send_permiso_email_request', f'Solicitud para enviar permiso a: {request_data.email} para permiso: {request_data.permiso_id}')
+    try:
+        subject = f"Su permiso de caza {request_data.permiso_id}"
+        html_content = f"""
+        <html>
+            <body>
+                <p>Estimado/a {request_data.nombre_apellido},</p>
+                <p>Adjunto encontrará su permiso de caza <b>{request_data.permiso_id}</b>.</p>
+                <p>Por favor, conserve este permiso para su presentación cuando sea requerido.</p>
+                <p>Gracias.</p>
+                <p>El equipo de Caza 2026</p>
+            </body>
+        </html>
+        """
+        sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+
+        email_sent = email_services.send_simple_email(
+            to_email=request_data.email,
+            subject=subject,
+            html_content=html_content,
+            sender_email=sender_email
+        )
+
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email del permiso.")
+
+        return {"message": "Permiso enviado exitosamente por email."}
+    except Exception as e:
+        await log_activity('ERROR', 'send_permiso_email_failed', f"Error al enviar permiso por email: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar permiso por email: {e}")
+
