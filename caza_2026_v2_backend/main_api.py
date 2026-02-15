@@ -431,6 +431,25 @@ async def get_total_inscripciones():
         await log_activity('ERROR', 'get_total_inscripciones_failed', f"Error al obtener total de inscripciones: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener total de inscripciones: {e}")
 
+@app.get("/api/stats/total-permisos", response_model=Dict[str, int])
+async def get_total_permisos():
+    await log_activity('INFO', 'get_total_permisos_request', 'Solicitud del total de permisos.')
+    try:
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        permisos_tab_name = "permisos" # Nombre de la pestaña, confirmado por el usuario
+        
+        if not sheet_id:
+            raise ValueError("GOOGLE_SHEET_ID no configurado.")
+
+        df = sheets_services.read_sheet_data(sheet_id, permisos_tab_name)
+        
+        total_permisos = len(df) if not df.empty else 0
+        
+        return {"total_permisos": total_permisos}
+    except Exception as e:
+        await log_activity('ERROR', 'get_total_permisos_failed', f"Error al obtener total de permisos: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener total de permisos: {e}")
+
 @app.get("/api/cobros-enviados", response_model=Dict[str, Any])
 async def get_cobros_enviados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
     await log_activity('INFO', 'get_cobros_enviados_request', f'Solicitud de cobros enviados - Página: {page}, Límite: {limit}')
@@ -476,6 +495,46 @@ async def get_permiso_cobros_enviados(page: int = Query(1, ge=1), limit: int = Q
     except Exception as e:
         await log_activity('ERROR', 'get_permiso_cobros_enviados_failed', f"Error al obtener cobros de permisos enviados: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener cobros de permisos enviados: {e}")
+
+@app.get("/api/stats/recaudaciones", response_model=Dict[str, Any])
+async def get_recaudaciones_stats():
+    await log_activity('INFO', 'get_recaudaciones_stats_request', 'Solicitud de estadísticas de recaudaciones.')
+    try:
+        # Recaudación total de inscripciones (estado 'approved')
+        total_inscripciones_aprobadas_query = select(func.sum(pagos.c.amount)).where(pagos.c.status == 'approved')
+        recaudacion_inscripciones = await database.fetch_val(total_inscripciones_aprobadas_query) or 0.0
+
+        # Recaudación total de permisos (estado 'approved')
+        total_permisos_aprobados_query = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
+        recaudacion_permisos = await database.fetch_val(total_permisos_aprobados_query) or 0.0
+
+        recaudacion_total = recaudacion_inscripciones + recaudacion_permisos
+
+        # Recaudación de permisos por mes
+        recaudacion_permisos_por_mes_query = select(
+            func.to_char(pagos_permisos.c.date_created, 'YYYY-MM').label('mes'),
+            func.sum(pagos_permisos.c.amount).label('total')
+        ).where(
+            pagos_permisos.c.status == 'approved'
+        ).group_by(
+            'mes'
+        ).order_by(
+            'mes'
+        )
+
+        recaudacion_permisos_por_mes_raw = await database.fetch_all(recaudacion_permisos_por_mes_query)
+        recaudacion_permisos_por_mes = [{"name": r["mes"], "total": float(r["total"])} for r in recaudacion_permisos_por_mes_raw]
+
+
+        return {
+            "recaudacion_total": recaudacion_total,
+            "recaudacion_inscripciones": recaudacion_inscripciones,
+            "recaudacion_permisos": recaudacion_permisos,
+            "recaudacion_permisos_por_mes": recaudacion_permisos_por_mes
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_recaudaciones_stats_failed', f"Error al obtener estadísticas de recaudaciones: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener estadísticas de recaudaciones: {e}")
 
 # Rutas adicionales para funcionalidad específica de email o drive pueden ser añadidas aquí.
 # Por ejemplo:
