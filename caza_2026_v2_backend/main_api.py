@@ -521,6 +521,8 @@ async def fetch_payment_from_mercadopago(payment_id: str):
         payer_email = payment.get("payer", {}).get("email")
         date_created = payment.get("date_created")
 
+        await log_activity('INFO', 'payment_details', f"Ref: {external_reference}, Status: {status_payment}, Amount: {amount}")
+
         if not external_reference:
             raise HTTPException(status_code=400, detail="Pago sin referencia externa")
 
