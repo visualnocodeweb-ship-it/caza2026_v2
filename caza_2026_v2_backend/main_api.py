@@ -426,6 +426,10 @@ async def get_total_inscripciones():
         
         total_inscripciones = len(df) if not df.empty else 0
         
+        # --- AÑADIR ESTE LOG DE DEPURACIÓN ---
+        await log_activity('DEBUG', 'total_inscripciones_debug', f"DataFrame len: {len(df) if not df.empty else 0}, Total Inscripciones a retornar: {total_inscripciones}")
+        # --- FIN LOG DE DEPURACIÓN ---
+
         return {"total_inscripciones": total_inscripciones}
     except Exception as e:
         await log_activity('ERROR', 'get_total_inscripciones_failed', f"Error al obtener total de inscripciones: {e}")
