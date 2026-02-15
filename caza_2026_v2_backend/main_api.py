@@ -186,7 +186,7 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
         # Buscar PDFs de inscripciones
         inscripciones_folder_id = "1a1VEA7I5N5sMvqLQWuoDpQ3WSiayQbK9"
         pdfs = drive_services.list_pdfs_in_folder(inscripciones_folder_id)
-        pdf_dict = {pdf['name'].replace('.pdf', ''): pdf['webViewLink'] for pdf in pdfs}
+        pdf_dict = {pdf['name'].replace('.pdf', ''): pdf.get('webViewLink', '') for pdf in pdfs if 'name' in pdf}
 
         # Enriquecer con estado de pago desde la base de datos
         for inscripcion in paginated_data:
@@ -298,7 +298,7 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         # Buscar PDFs de permisos
         permisos_folder_id = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
         pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
-        pdf_dict = {pdf['name'].replace('.pdf', ''): pdf['webViewLink'] for pdf in pdfs}
+        pdf_dict = {pdf['name'].replace('.pdf', ''): pdf.get('webViewLink', '') for pdf in pdfs if 'name' in pdf}
 
         # Enriquecer con estado de pago desde la base de datos
         for permiso in paginated_data:
@@ -1117,8 +1117,8 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
         pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
         pdf_link = None
         for pdf in pdfs:
-            if pdf['name'].replace('.pdf', '') == request_data.permiso_id:
-                pdf_link = pdf['webViewLink']
+            if 'name' in pdf and pdf['name'].replace('.pdf', '') == request_data.permiso_id:
+                pdf_link = pdf.get('webViewLink')
                 break
 
         subject = f"Su permiso de caza {request_data.permiso_id}"
