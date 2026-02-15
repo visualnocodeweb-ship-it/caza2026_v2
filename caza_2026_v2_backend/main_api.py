@@ -1117,58 +1117,59 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
         # Buscar PDF del permiso
         permisos_folder_id = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
         pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
-        pdf_link = None
+        pdf_id = None
+        pdf_filename = None
+
         for pdf in pdfs:
             if 'name' in pdf and pdf['name'].replace('.pdf', '') == request_data.permiso_id:
-                pdf_link = pdf.get('webViewLink')
+                pdf_id = pdf.get('id')
+                pdf_filename = pdf.get('name')
                 break
 
         subject = f"Su permiso de caza {request_data.permiso_id}"
-
-        if pdf_link:
-            html_content = f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2>Permiso de Caza</h2>
-                    <p>Estimado/a <strong>{request_data.nombre_apellido}</strong>,</p>
-                    <p>Adjunto encontrará el link para descargar su permiso de caza <b>{request_data.permiso_id}</b>.</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{pdf_link}" style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold;">
-                            📄 Ver/Descargar Permiso
-                        </a>
-                    </div>
-                    <p>Por favor, conserve este permiso para su presentación cuando sea requerido.</p>
-                    <p>Gracias.</p>
-                    <p><strong>El equipo de Caza 2026</strong></p>
-                </body>
-            </html>
-            """
-        else:
-            html_content = f"""
-            <html>
-                <body>
-                    <p>Estimado/a {request_data.nombre_apellido},</p>
-                    <p>Su permiso de caza <b>{request_data.permiso_id}</b> está siendo procesado.</p>
-                    <p>En breve recibirá el link de descarga.</p>
-                    <p>Gracias.</p>
-                    <p>El equipo de Caza 2026</p>
-                </body>
-            </html>
-            """
-
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Permiso de Caza</h2>
+                <p>Estimado/a <strong>{request_data.nombre_apellido}</strong>,</p>
+                <p>Adjunto encontrará su permiso de caza <b>{request_data.permiso_id}</b>.</p>
+                <p>Por favor, conserve este permiso para su presentación cuando sea requerido.</p>
+                <p>Gracias.</p>
+                <p><strong>El equipo de Caza 2026</strong></p>
+            </body>
+        </html>
+        """
         sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
 
-        email_sent = email_services.send_simple_email(
-            to_email=request_data.email,
-            subject=subject,
-            html_content=html_content,
-            sender_email=sender_email
-        )
+        if pdf_id and pdf_filename:
+            # Descargar PDF de Google Drive
+            pdf_content = drive_services.download_file(pdf_id)
+
+            if pdf_content:
+                # Enviar email con PDF adjunto
+                email_sent = email_services.send_email_with_attachment(
+                    to_email=request_data.email,
+                    subject=subject,
+                    html_content=html_content,
+                    sender_email=sender_email,
+                    attachment_content=pdf_content,
+                    attachment_filename=pdf_filename
+                )
+            else:
+                raise HTTPException(status_code=500, detail="No se pudo descargar el PDF")
+        else:
+            # Sin PDF, enviar email simple
+            email_sent = email_services.send_simple_email(
+                to_email=request_data.email,
+                subject=subject,
+                html_content=f"<p>Estimado/a {request_data.nombre_apellido},</p><p>Su permiso está siendo procesado.</p>",
+                sender_email=sender_email
+            )
 
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email del permiso.")
 
-        return {"message": "Permiso enviado exitosamente por email."}
+        return {"message": "Permiso enviado exitosamente por email con PDF adjunto."}
     except Exception as e:
         await log_activity('ERROR', 'send_permiso_email_failed', f"Error al enviar permiso por email: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar permiso por email: {e}")
