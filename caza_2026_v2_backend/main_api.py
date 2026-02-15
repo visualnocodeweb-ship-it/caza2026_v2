@@ -183,9 +183,19 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
         # Aplicar paginación al DataFrame
         paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
 
+        # Buscar PDFs de inscripciones
+        inscripciones_folder_id = "1a1VEA7I5N5sMvqLQWuoDpQ3WSiayQbK9"
+        pdfs = drive_services.list_pdfs_in_folder(inscripciones_folder_id)
+        pdf_dict = {pdf['name'].replace('.pdf', ''): pdf['webViewLink'] for pdf in pdfs}
+
         # Enriquecer con estado de pago desde la base de datos
         for inscripcion in paginated_data:
             numero_inscripcion = inscripcion.get('numero_inscripcion')
+
+            # Asociar PDF
+            if numero_inscripcion and numero_inscripcion in pdf_dict:
+                inscripcion['pdf_link'] = pdf_dict[numero_inscripcion]
+
             if numero_inscripcion:
                 # Buscar si hay un pago aprobado en la base de datos
                 pago_query = select(pagos).where(
@@ -285,9 +295,19 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
 
         paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
 
+        # Buscar PDFs de permisos
+        permisos_folder_id = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
+        pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
+        pdf_dict = {pdf['name'].replace('.pdf', ''): pdf['webViewLink'] for pdf in pdfs}
+
         # Enriquecer con estado de pago desde la base de datos
         for permiso in paginated_data:
             permiso_id = permiso.get('ID')
+
+            # Asociar PDF
+            if permiso_id and permiso_id in pdf_dict:
+                permiso['pdf_link'] = pdf_dict[permiso_id]
+
             if permiso_id:
                 # Buscar si hay un pago aprobado en la base de datos
                 pago_query = select(pagos_permisos).where(
