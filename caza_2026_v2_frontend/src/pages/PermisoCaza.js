@@ -31,7 +31,7 @@ const PermisoCaza = () => {
         acc[perm.ID] = [];
         return acc;
       }, {});
-      sentItemsRaw.forEach(item => {
+      sentItemsRaw.data.forEach(item => { // CAMBIO AQUÍ: sentItemsRaw.data.forEach
         if (item.item_type === 'permiso' && sentStatusMap[item.item_id]) {
           sentStatusMap[item.item_id].push(item.sent_type);
         }

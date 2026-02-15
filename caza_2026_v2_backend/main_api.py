@@ -389,6 +389,48 @@ async def handle_payment_webhook(payment_data: PaymentWebhookData):
         await log_activity('ERROR', 'payment_webhook_failed', f"Error al procesar webhook de pago: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al procesar webhook de pago: {e}")
 
+@app.get("/api/pagos", response_model=Dict[str, Any])
+async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
+    await log_activity('INFO', 'get_pagos_request', f'Solicitud de pagos - Página: {page}, Límite: {limit}')
+    try:
+        total_records_query = select(func.count()).select_from(pagos)
+        total_records = await database.fetch_val(total_records_query)
+        offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+        
+        query = pagos.select().order_by(desc(pagos.c.date_created)).offset(offset).limit(limit)
+        payment_records = await database.fetch_all(query)
+        
+        return {
+            "data": [dict(record) for record in payment_records],
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_pagos_failed', f"Error al obtener pagos: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener pagos: {e}")
+
+@app.get("/api/stats/total-inscripciones", response_model=Dict[str, int])
+async def get_total_inscripciones():
+    await log_activity('INFO', 'get_total_inscripciones_request', 'Solicitud del total de inscripciones.')
+    try:
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        inscripciones_tab_name = "inscrip" # Nombre de la pestaña, confirmado por el usuario
+        
+        if not sheet_id:
+            raise ValueError("GOOGLE_SHEET_ID no configurado.")
+
+        df = sheets_services.read_sheet_data(sheet_id, inscripciones_tab_name)
+        
+        total_inscripciones = len(df) if not df.empty else 0
+        
+        return {"total_inscripciones": total_inscripciones}
+    except Exception as e:
+        await log_activity('ERROR', 'get_total_inscripciones_failed', f"Error al obtener total de inscripciones: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener total de inscripciones: {e}")
+
 # Rutas adicionales para funcionalidad específica de email o drive pueden ser añadidas aquí.
 # Por ejemplo:
 # @app.post("/api/send-credencial")
