@@ -204,19 +204,23 @@ def update_cobro_enviado_status(sheet_id, sheet_name, permiso_id, new_status):
         return None
 
 
-def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
+def get_price_for_establishment(sheet_id_param, sheet_name_param, tipo_establecimiento):
     """
     Obtiene el precio de la hoja 'precios' basado en el tipo de establecimiento.
 
     Args:
-        sheet_id (str): El ID de la hoja de cálculo de precios.
-        sheet_name (str): El nombre de la pestaña de precios.
+        sheet_id_param (str): El ID de la hoja de cálculo de precios.
+        sheet_name_param (str): El nombre de la pestaña de precios.
         tipo_establecimiento (str): El tipo de establecimiento ('Area Libre' o 'Criadero').
 
     Returns:
         float: El precio correspondiente.
     """
-    precios_df = read_sheet_data(sheet_id, sheet_name)
+    # Usar PRICES_SHEET_ID si está definido, de lo contrario, usar sheet_id_param
+    price_sheet_id = os.getenv("PRICES_SHEET_ID", sheet_id_param)
+    price_sheet_name = "precios" # Nombre de la pestaña de precios, según el usuario
+
+    precios_df = read_sheet_data(price_sheet_id, price_sheet_name)
     logging.info(f"Columnas del DataFrame de precios: {precios_df.columns.tolist()}")
 
     if precios_df.empty:
@@ -250,19 +254,23 @@ def get_price_for_establishment(sheet_id, sheet_name, tipo_establecimiento):
     return float(cleaned_price_str)
 
 
-def get_price_for_categoria(sheet_id, sheet_name, categoria):
+def get_price_for_categoria(sheet_id_param, sheet_name_param, categoria):
     """
     Obtiene el precio de la hoja 'precios' basado en la categoría del permiso.
 
     Args:
-        sheet_id (str): El ID de la hoja de cálculo de precios.
-        sheet_name (str): El nombre de la pestaña de precios.
+        sheet_id_param (str): El ID de la hoja de cálculo de precios.
+        sheet_name_param (str): El nombre de la pestaña de precios.
         categoria (str): La categoría del permiso.
 
     Returns:
         float: El precio correspondiente.
     """
-    precios_df = read_sheet_data(sheet_id, sheet_name)
+    # Usar PRICES_SHEET_ID si está definido, de lo contrario, usar sheet_id_param
+    price_sheet_id = os.getenv("PRICES_SHEET_ID", sheet_id_param)
+    price_sheet_name = "precios" # Nombre de la pestaña de precios, según el usuario
+
+    precios_df = read_sheet_data(price_sheet_id, price_sheet_name)
     logging.info(f"Columnas del DataFrame de precios: {precios_df.columns.tolist()}")
 
     if precios_df.empty:

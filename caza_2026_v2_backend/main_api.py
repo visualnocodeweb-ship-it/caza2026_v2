@@ -137,12 +137,13 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
         # Por simplicidad, leeremos de sheets_services.py, ajusta esto si usas una DB principal.
         # Asume que GOOGLE_SHEET_ID y un nombre de hoja específico para inscripciones están en .env
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
-        inscripciones_sheet_name = os.getenv("INSCRIPCIONES_SHEET_NAME", "Inscripciones") # Nombre de la hoja para inscripciones
+        main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME") # Obtener el nombre de la hoja principal del .env
+        inscripciones_tab_name = "Inscripciones" # Asumir nombre de la pestaña, el usuario debe confirmarlo
         
-        if not sheet_id or not inscripciones_sheet_name:
-            raise ValueError("GOOGLE_SHEET_ID o INSCRIPCIONES_SHEET_NAME no configurados.")
+        if not sheet_id or not main_sheet_name_env:
+            raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
 
-        df = sheets_services.read_sheet_data(sheet_id, inscripciones_sheet_name)
+        df = sheets_services.read_sheet_data(sheet_id, inscripciones_tab_name)
         
         if df.empty:
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
@@ -170,10 +171,12 @@ async def create_inscripcion(inscripcion: InscriptionCreate):
     await log_activity('INFO', 'create_inscripcion_request', f'Solicitud para crear inscripción: {inscripcion.email}')
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
-        inscripciones_sheet_name = os.getenv("INSCRIPCIONES_SHEET_NAME", "Inscripciones")
+        main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
+        inscripciones_tab_name = "Inscripciones" # Asumir nombre de la pestaña, el usuario debe confirmarlo
         
-        if not sheet_id or not inscripciones_sheet_name:
-            raise ValueError("GOOGLE_SHEET_ID o INSCRIPCIONES_SHEET_NAME no configurados.")
+        if not sheet_id or not main_sheet_name_env:
+            raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
+
 
         # Generar un numero_inscripcion único (ej. timestamp + hash o UUID)
         numero_inscripcion = f"INS-{int(datetime.datetime.now().timestamp())}"
@@ -212,12 +215,13 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
     try:
         # Leer permisos desde Google Sheets o DB
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
-        permisos_sheet_name = os.getenv("PERMISOS_SHEET_NAME", "Permisos") # Nombre de la hoja para permisos
+        main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME") # Obtener el nombre de la hoja principal del .env
+        permisos_tab_name = "Permisos" # Asumir nombre de la pestaña, el usuario debe confirmarlo
         
-        if not sheet_id or not permisos_sheet_name:
-            raise ValueError("GOOGLE_SHEET_ID o PERMISOS_SHEET_NAME no configurados.")
+        if not sheet_id or not main_sheet_name_env:
+            raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
 
-        df = sheets_services.read_sheet_data(sheet_id, permisos_sheet_name)
+        df = sheets_services.read_sheet_data(sheet_id, permisos_tab_name)
         
         if df.empty:
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
@@ -244,10 +248,12 @@ async def create_permiso(permiso: PermisoCreate):
     await log_activity('INFO', 'create_permiso_request', f'Solicitud para crear permiso para: {permiso.email_solicitante}')
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
-        permisos_sheet_name = os.getenv("PERMISOS_SHEET_NAME", "Permisos")
+        main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
+        permisos_tab_name = "Permisos" # Asumir nombre de la pestaña, el usuario debe confirmarlo
         
-        if not sheet_id or not permisos_sheet_name:
-            raise ValueError("GOOGLE_SHEET_ID o PERMISOS_SHEET_NAME no configurados.")
+        if not sheet_id or not main_sheet_name_env:
+            raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
+
 
         # Generar un ID de permiso único
         permiso_id = f"PER-{int(datetime.datetime.now().timestamp())}"
@@ -344,10 +350,11 @@ async def handle_payment_webhook(payment_data: PaymentWebhookData):
 
             # Actualizar el estado en Google Sheets (hoja de inscripciones)
             sheet_id = os.getenv("GOOGLE_SHEET_ID")
-            inscripciones_sheet_name = os.getenv("INSCRIPCIONES_SHEET_NAME", "Inscripciones")
-            if sheet_id and inscripciones_sheet_name:
+            main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
+            inscripciones_tab_name = "Inscripciones" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+            if sheet_id and main_sheet_name_env:
                 sheets_services.update_payment_status(
-                    sheet_id, inscripciones_sheet_name, payment_data.external_reference, payment_data.status
+                    sheet_id, inscripciones_tab_name, payment_data.external_reference, payment_data.status
                 )
             await log_activity('INFO', 'inscripcion_pago_actualizado', f"Pago {payment_data.payment_id} para inscripción {payment_data.external_reference} actualizado a {payment_data.status}")
 
@@ -365,10 +372,11 @@ async def handle_payment_webhook(payment_data: PaymentWebhookData):
 
             # Actualizar el estado en Google Sheets (hoja de permisos)
             sheet_id = os.getenv("GOOGLE_SHEET_ID")
-            permisos_sheet_name = os.getenv("PERMISOS_SHEET_NAME", "Permisos")
-            if sheet_id and permisos_sheet_name:
+            main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
+            permisos_tab_name = "Permisos" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+            if sheet_id and main_sheet_name_env:
                 sheets_services.update_payment_status( # Reutilizamos la función, asumiendo que el ID y la columna son similares
-                    sheet_id, permisos_sheet_name, payment_data.external_reference, payment_data.status
+                    sheet_id, permisos_tab_name, payment_data.external_reference, payment_data.status
                 )
             await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {payment_data.payment_id} para permiso {payment_data.external_reference} actualizado a {payment_data.status}")
         else:
