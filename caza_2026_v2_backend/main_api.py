@@ -108,7 +108,7 @@ else:
     logging.warning("MERCADOPAGO_ACCESS_TOKEN no configurado.")
 
 # --- Creación de la tabla de la base de datos ---
-metadata.create_all(bind=engine)
+# metadata.create_all(bind=engine) # Mover esta línea al evento startup
 
 app = FastAPI()
 
@@ -116,6 +116,7 @@ app = FastAPI()
 @app.on_event("startup")
 async def startup():
     await database.connect()
+    metadata.create_all(bind=engine) # Mover aquí la creación de tablas
     await log_activity('INFO', 'startup', 'La aplicación se ha iniciado.')
 
 @app.on_event("shutdown")
