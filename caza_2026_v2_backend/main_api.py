@@ -356,62 +356,82 @@ async def link_data(request_data: LinkDataRequest):
 
 
 @app.post("/api/pagos/webhook", status_code=status.HTTP_200_OK)
-async def handle_payment_webhook(payment_data: PaymentWebhookData):
-    await log_activity('INFO', 'payment_webhook_received', f"Webhook de pago recibido para {payment_data.external_reference}")
+@app.get("/api/pagos/webhook", status_code=status.HTTP_200_OK)  # MercadoPago también envía GET
+async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None), type: str = Query(None)):
+    await log_activity('INFO', 'payment_webhook_received', f"Webhook de MercadoPago recibido - ID: {id}, Topic: {topic}, Type: {type}")
+
+    # MercadoPago envía notificaciones con diferentes formatos
+    if not id or (not topic and not type):
+        return {"status": "ignored"}
+
     try:
-        # Registrar el pago en la base de datos `pagos` o `pagos_permisos`
-        if payment_data.external_reference.startswith("INS-"): # Es una inscripción
-            query = pagos.insert().values(
-                payment_id=payment_data.payment_id,
-                inscription_id=payment_data.external_reference,
-                status=payment_data.status,
-                status_detail=payment_data.status_detail,
-                amount=payment_data.amount,
-                email=payment_data.payer_email,
-                date_created=datetime.datetime.now(datetime.timezone.utc)
-            )
-            await database.execute(query)
+        # Solo procesamos notificaciones de pagos
+        if topic == "payment" or type == "payment":
+            # Obtener detalles del pago desde MercadoPago
+            payment_info = mercadopago_services.sdk.payment().get(id)
 
-            # Actualizar el estado en Google Sheets (hoja de inscripciones)
-            sheet_id = os.getenv("GOOGLE_SHEET_ID")
-            main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
-            inscripciones_tab_name = "inscrip" # Nombre de la pestaña, confirmado por el usuario
-            if sheet_id and main_sheet_name_env:
-                sheets_services.update_payment_status(
-                    sheet_id, inscripciones_tab_name, payment_data.external_reference, payment_data.status
+            if payment_info.get("status") != 200:
+                await log_activity('WARNING', 'payment_webhook_api_error', f"Error al obtener info de pago {id}: {payment_info}")
+                return {"status": "error"}
+
+            payment = payment_info["response"]
+            external_reference = payment.get("external_reference")
+            status_payment = payment.get("status")
+            status_detail = payment.get("status_detail")
+            amount = payment.get("transaction_amount")
+            payer_email = payment.get("payer", {}).get("email")
+
+            await log_activity('INFO', 'payment_details', f"Pago {id} - Ref: {external_reference}, Status: {status_payment}, Amount: {amount}")
+
+            # Registrar el pago en la base de datos
+            if external_reference and "inscr" in external_reference.lower():  # Es una inscripción
+                query = pagos.insert().values(
+                    payment_id=int(id),
+                    inscription_id=external_reference,
+                    status=status_payment,
+                    status_detail=status_detail,
+                    amount=amount,
+                    email=payer_email,
+                    date_created=datetime.datetime.now(datetime.timezone.utc)
                 )
-            await log_activity('INFO', 'inscripcion_pago_actualizado', f"Pago {payment_data.payment_id} para inscripción {payment_data.external_reference} actualizado a {payment_data.status}")
+                await database.execute(query)
 
-        elif payment_data.external_reference.startswith("PER-"): # Es un permiso
-            query = pagos_permisos.insert().values(
-                payment_id=payment_data.payment_id,
-                permiso_id=payment_data.external_reference,
-                status=payment_data.status,
-                status_detail=payment_data.status_detail,
-                amount=payment_data.amount,
-                email=payment_data.payer_email,
-                date_created=datetime.datetime.now(datetime.timezone.utc)
-            )
-            await database.execute(query)
+                # Actualizar estado en Google Sheets solo si está aprobado
+                if status_payment == "approved":
+                    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+                    if sheet_id:
+                        sheets_services.update_payment_status(
+                            sheet_id, "inscrip", external_reference, "Pagado"
+                        )
+                await log_activity('INFO', 'inscripcion_pago_actualizado', f"Pago {id} para inscripción {external_reference} actualizado a {status_payment}")
 
-            # Actualizar el estado en Google Sheets (hoja de permisos)
-            sheet_id = os.getenv("GOOGLE_SHEET_ID")
-            main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
-            permisos_tab_name = "permisos" # Nombre de la pestaña, confirmado por el usuario
-            if sheet_id and main_sheet_name_env:
-                sheets_services.update_payment_status( # Reutilizamos la función, asumiendo que el ID y la columna son similares
-                    sheet_id, permisos_tab_name, payment_data.external_reference, payment_data.status
+            elif external_reference and "per" in external_reference.lower():  # Es un permiso
+                query = pagos_permisos.insert().values(
+                    payment_id=int(id),
+                    permiso_id=external_reference,
+                    status=status_payment,
+                    status_detail=status_detail,
+                    amount=amount,
+                    email=payer_email,
+                    date_created=datetime.datetime.now(datetime.timezone.utc)
                 )
-            await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {payment_data.payment_id} para permiso {payment_data.external_reference} actualizado a {payment_data.status}")
-        else:
-            await log_activity('WARNING', 'payment_webhook_unknown_ref', f"Referencia externa desconocida en webhook: {payment_data.external_reference}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Referencia externa desconocida.")
+                await database.execute(query)
 
-        return {"message": "Webhook de pago procesado exitosamente"}
+                # Actualizar estado en Google Sheets solo si está aprobado
+                if status_payment == "approved":
+                    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+                    if sheet_id:
+                        sheets_services.update_payment_status(
+                            sheet_id, "permisos", external_reference, "Pagado"
+                        )
+                await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {id} para permiso {external_reference} actualizado a {status_payment}")
+
+        return {"status": "ok"}
 
     except Exception as e:
         await log_activity('ERROR', 'payment_webhook_failed', f"Error al procesar webhook de pago: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al procesar webhook de pago: {e}")
+        # No lanzar excepción para que MercadoPago no reintente
+        return {"status": "error", "message": str(e)}
 
 @app.get("/api/pagos", response_model=Dict[str, Any])
 async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
