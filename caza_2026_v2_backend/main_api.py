@@ -138,7 +138,7 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
         # Asume que GOOGLE_SHEET_ID y un nombre de hoja específico para inscripciones están en .env
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME") # Obtener el nombre de la hoja principal del .env
-        inscripciones_tab_name = "Inscripciones" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+        inscripciones_tab_name = "inscrip" # Nombre de la pestaña, confirmado por el usuario
         
         if not sheet_id or not main_sheet_name_env:
             raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
@@ -172,7 +172,7 @@ async def create_inscripcion(inscripcion: InscriptionCreate):
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
-        inscripciones_tab_name = "Inscripciones" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+        inscripciones_tab_name = "inscrip" # Nombre de la pestaña, confirmado por el usuario
         
         if not sheet_id or not main_sheet_name_env:
             raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
@@ -216,7 +216,7 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         # Leer permisos desde Google Sheets o DB
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME") # Obtener el nombre de la hoja principal del .env
-        permisos_tab_name = "Permisos" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+        permisos_tab_name = "permisos" # Nombre de la pestaña, confirmado por el usuario
         
         if not sheet_id or not main_sheet_name_env:
             raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
@@ -249,7 +249,7 @@ async def create_permiso(permiso: PermisoCreate):
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
-        permisos_tab_name = "Permisos" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+        permisos_tab_name = "permisos" # Nombre de la pestaña, confirmado por el usuario
         
         if not sheet_id or not main_sheet_name_env:
             raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
@@ -351,7 +351,7 @@ async def handle_payment_webhook(payment_data: PaymentWebhookData):
             # Actualizar el estado en Google Sheets (hoja de inscripciones)
             sheet_id = os.getenv("GOOGLE_SHEET_ID")
             main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
-            inscripciones_tab_name = "Inscripciones" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+            inscripciones_tab_name = "inscrip" # Nombre de la pestaña, confirmado por el usuario
             if sheet_id and main_sheet_name_env:
                 sheets_services.update_payment_status(
                     sheet_id, inscripciones_tab_name, payment_data.external_reference, payment_data.status
@@ -373,7 +373,7 @@ async def handle_payment_webhook(payment_data: PaymentWebhookData):
             # Actualizar el estado en Google Sheets (hoja de permisos)
             sheet_id = os.getenv("GOOGLE_SHEET_ID")
             main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
-            permisos_tab_name = "Permisos" # Asumir nombre de la pestaña, el usuario debe confirmarlo
+            permisos_tab_name = "permisos" # Nombre de la pestaña, confirmado por el usuario
             if sheet_id and main_sheet_name_env:
                 sheets_services.update_payment_status( # Reutilizamos la función, asumiendo que el ID y la columna son similares
                     sheet_id, permisos_tab_name, payment_data.external_reference, payment_data.status
