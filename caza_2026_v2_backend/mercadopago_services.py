@@ -27,6 +27,10 @@ def create_payment_preference(title: str, price: float, external_reference: str,
         dict: {"success": bool, "init_point": str, "preference_id": str, "error": str}
     """
     try:
+        # Obtener URLs del entorno
+        frontend_url = os.getenv('FRONTEND_URL', 'https://caza2026-frontend.onrender.com')
+        backend_url = os.getenv('BACKEND_URL', 'https://caza2026-1.onrender.com')
+
         preference_data = {
             "items": [
                 {
@@ -38,12 +42,13 @@ def create_payment_preference(title: str, price: float, external_reference: str,
             ],
             "external_reference": external_reference,
             "back_urls": {
-                "success": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/pago-exitoso",
-                "failure": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/pago-fallido",
-                "pending": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/pago-pendiente"
+                "success": f"{frontend_url}/pago-exitoso",
+                "failure": f"{frontend_url}/pago-fallido",
+                "pending": f"{frontend_url}/pago-pendiente"
             },
-            "auto_return": "approved",
-            "notification_url": f"{os.getenv('BACKEND_URL', 'http://localhost:8000')}/api/pagos/webhook"
+            # auto_return temporalmente deshabilitado hasta configurar URLs correctamente
+            # "auto_return": "approved",
+            "notification_url": f"{backend_url}/api/pagos/webhook"
         }
 
         # Añadir email del pagador si está disponible
