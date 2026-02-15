@@ -24,7 +24,16 @@ def read_sheet_data(sheet_id, sheet_name):
     Lee los datos de una hoja de cálculo específica de Google Sheets y los devuelve como un DataFrame de Pandas.
     """
     service = get_sheets_service()
-    range_name = f"'{sheet_name}'!A:ZZ"
+    
+    # Manejar el nombre de la hoja para la API de Google Sheets
+    if ' ' in sheet_name or "'" in sheet_name:
+        # Si el nombre de la hoja contiene espacios o comillas, encerrarlo en comillas simples.
+        # Además, si ya hay comillas, escaparlas.
+        processed_sheet_name = sheet_name.replace("'", "''") # Escapar comillas simples
+        range_name = f"'{processed_sheet_name}'!A:ZZ"
+    else:
+        # Si no hay espacios ni comillas, se puede usar directamente.
+        range_name = f"{sheet_name}!A:ZZ"
 
     if not sheet_id or not sheet_name:
         logging.error("Error: GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no están configurados en .env")
