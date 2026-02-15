@@ -35,7 +35,7 @@ const Inscripciones = () => {
         acc[insc.numero_inscripcion] = [];
         return acc;
       }, {});
-      sentItemsRaw.forEach(item => {
+      sentItemsRaw.data.forEach(item => { // CAMBIO AQUÍ: sentItemsRaw.data.forEach
         if (item.item_type === 'inscripcion' && sentStatusMap[item.item_id]) {
           sentStatusMap[item.item_id].push(item.sent_type);
         }
