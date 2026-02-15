@@ -573,16 +573,51 @@ async def fetch_payment_from_mercadopago(payment_id: str):
 async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
     await log_activity('INFO', 'get_pagos_request', f'Solicitud de pagos - Página: {page}, Límite: {limit}')
     try:
-        total_records_query = select(func.count()).select_from(pagos)
-        total_records = await database.fetch_val(total_records_query)
-        offset = (page - 1) * limit
+        # Obtener pagos de inscripciones
+        inscripciones_records = await database.fetch_all(pagos.select())
+        # Obtener pagos de permisos
+        permisos_records = await database.fetch_all(pagos_permisos.select())
+
+        # Combinar y normalizar
+        all_payments = []
+
+        for record in inscripciones_records:
+            all_payments.append({
+                "id": record["id"],
+                "payment_id": record["payment_id"],
+                "inscription_id": record["inscription_id"],
+                "permiso_id": None,
+                "status": record["status"],
+                "status_detail": record["status_detail"],
+                "amount": record["amount"],
+                "email": record["email"],
+                "date_created": record["date_created"]
+            })
+
+        for record in permisos_records:
+            all_payments.append({
+                "id": record["id"],
+                "payment_id": record["payment_id"],
+                "inscription_id": None,
+                "permiso_id": record["permiso_id"],
+                "status": record["status"],
+                "status_detail": record["status_detail"],
+                "amount": record["amount"],
+                "email": record["email"],
+                "date_created": record["date_created"]
+            })
+
+        # Ordenar por fecha (más reciente primero)
+        all_payments.sort(key=lambda x: x["date_created"] if x["date_created"] else "", reverse=True)
+
+        # Aplicar paginación
+        total_records = len(all_payments)
         total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
-        
-        query = pagos.select().order_by(desc(pagos.c.date_created)).offset(offset).limit(limit)
-        payment_records = await database.fetch_all(query)
-        
+        offset = (page - 1) * limit
+        paginated_payments = all_payments[offset:offset + limit]
+
         return {
-            "data": [dict(record) for record in payment_records],
+            "data": paginated_payments,
             "total_records": total_records,
             "page": page,
             "limit": limit,
