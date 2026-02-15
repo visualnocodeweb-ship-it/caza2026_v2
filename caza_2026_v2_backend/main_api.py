@@ -568,16 +568,30 @@ async def get_total_permisos():
 async def get_cobros_enviados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
     await log_activity('INFO', 'get_cobros_enviados_request', f'Solicitud de cobros enviados - Página: {page}, Límite: {limit}')
     try:
-        total_records_query = select(func.count()).select_from(cobros_enviados)
+        # Leer de sent_items filtrando por inscripciones y tipo cobro
+        total_records_query = select(func.count()).select_from(sent_items).where(
+            (sent_items.c.item_type == 'inscripcion') & (sent_items.c.sent_type == 'cobro')
+        )
         total_records = await database.fetch_val(total_records_query)
         offset = (page - 1) * limit
         total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
-        
-        query = cobros_enviados.select().order_by(desc(cobros_enviados.c.date_sent)).offset(offset).limit(limit)
+
+        query = sent_items.select().where(
+            (sent_items.c.item_type == 'inscripcion') & (sent_items.c.sent_type == 'cobro')
+        ).order_by(desc(sent_items.c.date_sent)).offset(offset).limit(limit)
         cobros_records = await database.fetch_all(query)
-        
+
+        # Mapear los campos para que coincidan con el formato esperado
+        data = [{
+            "id": record["id"],
+            "inscription_id": record["item_id"],
+            "email": None,  # sent_items no tiene email
+            "amount": None,  # sent_items no tiene amount
+            "date_sent": record["date_sent"]
+        } for record in cobros_records]
+
         return {
-            "data": [dict(record) for record in cobros_records],
+            "data": data,
             "total_records": total_records,
             "page": page,
             "limit": limit,
@@ -591,16 +605,30 @@ async def get_cobros_enviados(page: int = Query(1, ge=1), limit: int = Query(10,
 async def get_permiso_cobros_enviados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
     await log_activity('INFO', 'get_permiso_cobros_enviados_request', f'Solicitud de cobros de permisos enviados - Página: {page}, Límite: {limit}')
     try:
-        total_records_query = select(func.count()).select_from(permisos_enviados)
+        # Leer de sent_items filtrando por permisos y tipo cobro
+        total_records_query = select(func.count()).select_from(sent_items).where(
+            (sent_items.c.item_type == 'permiso') & (sent_items.c.sent_type == 'cobro')
+        )
         total_records = await database.fetch_val(total_records_query)
         offset = (page - 1) * limit
         total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
-        
-        query = permisos_enviados.select().order_by(desc(permisos_enviados.c.date_sent)).offset(offset).limit(limit)
+
+        query = sent_items.select().where(
+            (sent_items.c.item_type == 'permiso') & (sent_items.c.sent_type == 'cobro')
+        ).order_by(desc(sent_items.c.date_sent)).offset(offset).limit(limit)
         permiso_cobros_records = await database.fetch_all(query)
-        
+
+        # Mapear los campos para que coincidan con el formato esperado
+        data = [{
+            "id": record["id"],
+            "permiso_id": record["item_id"],
+            "email": None,  # sent_items no tiene email
+            "amount": None,  # sent_items no tiene amount
+            "date_sent": record["date_sent"]
+        } for record in permiso_cobros_records]
+
         return {
-            "data": [dict(record) for record in permiso_cobros_records],
+            "data": data,
             "total_records": total_records,
             "page": page,
             "limit": limit,
