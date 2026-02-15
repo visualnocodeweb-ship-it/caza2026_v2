@@ -431,6 +431,52 @@ async def get_total_inscripciones():
         await log_activity('ERROR', 'get_total_inscripciones_failed', f"Error al obtener total de inscripciones: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener total de inscripciones: {e}")
 
+@app.get("/api/cobros-enviados", response_model=Dict[str, Any])
+async def get_cobros_enviados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
+    await log_activity('INFO', 'get_cobros_enviados_request', f'Solicitud de cobros enviados - Página: {page}, Límite: {limit}')
+    try:
+        total_records_query = select(func.count()).select_from(cobros_enviados)
+        total_records = await database.fetch_val(total_records_query)
+        offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+        
+        query = cobros_enviados.select().order_by(desc(cobros_enviados.c.date_sent)).offset(offset).limit(limit)
+        cobros_records = await database.fetch_all(query)
+        
+        return {
+            "data": [dict(record) for record in cobros_records],
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_cobros_enviados_failed', f"Error al obtener cobros enviados: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener cobros enviados: {e}")
+
+@app.get("/api/permiso-cobros-enviados", response_model=Dict[str, Any])
+async def get_permiso_cobros_enviados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
+    await log_activity('INFO', 'get_permiso_cobros_enviados_request', f'Solicitud de cobros de permisos enviados - Página: {page}, Límite: {limit}')
+    try:
+        total_records_query = select(func.count()).select_from(permisos_enviados)
+        total_records = await database.fetch_val(total_records_query)
+        offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+        
+        query = permisos_enviados.select().order_by(desc(permisos_enviados.c.date_sent)).offset(offset).limit(limit)
+        permiso_cobros_records = await database.fetch_all(query)
+        
+        return {
+            "data": [dict(record) for record in permiso_cobros_records],
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_permiso_cobros_enviados_failed', f"Error al obtener cobros de permisos enviados: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener cobros de permisos enviados: {e}")
+
 # Rutas adicionales para funcionalidad específica de email o drive pueden ser añadidas aquí.
 # Por ejemplo:
 # @app.post("/api/send-credencial")
