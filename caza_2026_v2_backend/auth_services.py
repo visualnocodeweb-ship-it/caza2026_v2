@@ -12,12 +12,20 @@ SCOPES = [
 # Nombre del archivo JSON de la clave de la cuenta de servicio (como fallback)
 SERVICE_ACCOUNT_FILE = "service_account.json"
 
+# Caché global de credenciales
+_cached_credentials = None
+
 def get_google_credentials():
     """
     Carga las credenciales de la cuenta de servicio.
     Prioriza la variable de entorno GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON.
     Si no está presente, intenta cargar desde el archivo service_account.json.
+    Usa caché para evitar recrear credenciales en cada request.
     """
+    global _cached_credentials
+    if _cached_credentials:
+        return _cached_credentials
+
     credentials_json_str = os.getenv("GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON")
 
     if credentials_json_str:
@@ -26,6 +34,7 @@ def get_google_credentials():
             creds = service_account.Credentials.from_service_account_info(
                 credentials_info, scopes=SCOPES
             )
+            _cached_credentials = creds
             return creds
         except json.JSONDecodeError as e:
             raise ValueError(
@@ -56,6 +65,7 @@ def get_google_credentials():
         creds = service_account.Credentials.from_service_account_file(
             file_path, scopes=SCOPES
         )
+        _cached_credentials = creds
         return creds
 
 if __name__ == '__main__':

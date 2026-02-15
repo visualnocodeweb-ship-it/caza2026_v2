@@ -126,6 +126,10 @@ app.add_middleware(
 
 # --- Endpoints ---
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 @app.get("/")
 async def read_root():
     await log_activity('INFO', 'root_access', 'Acceso al endpoint raíz.')

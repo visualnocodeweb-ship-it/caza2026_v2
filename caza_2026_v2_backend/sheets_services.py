@@ -13,10 +13,18 @@ GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME")
 # Configurar el logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Caché del servicio de Sheets
+_cached_sheets_service = None
+
 def get_sheets_service():
-    """Obtiene y devuelve un objeto de servicio de Google Sheets."""
+    """Obtiene y devuelve un objeto de servicio de Google Sheets. Usa caché."""
+    global _cached_sheets_service
+    if _cached_sheets_service:
+        return _cached_sheets_service
+
     credentials = get_google_credentials()
     service = discovery.build('sheets', 'v4', credentials=credentials)
+    _cached_sheets_service = service
     return service
 
 def read_sheet_data(sheet_id, sheet_name):

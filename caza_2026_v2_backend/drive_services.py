@@ -8,11 +8,18 @@ load_dotenv(encoding='latin-1') # Cargar variables de entorno del archivo .env
 
 GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 
+# Caché del servicio de Drive
+_cached_drive_service = None
 
 def get_drive_service():
-    """Obtiene y devuelve un objeto de servicio de Google Drive."""
+    """Obtiene y devuelve un objeto de servicio de Google Drive. Usa caché."""
+    global _cached_drive_service
+    if _cached_drive_service:
+        return _cached_drive_service
+
     credentials = get_google_credentials()
     service = discovery.build('drive', 'v3', credentials=credentials)
+    _cached_drive_service = service
     return service
 
 def list_pdfs_in_folder(folder_id):
