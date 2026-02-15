@@ -7,7 +7,7 @@ import datetime
 from sqlalchemy import select, func, desc
 from .database import database, engine, metadata
 from .models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items
-from . import sheets_services, email_services, drive_services # Importar los servicios
+from . import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
 import math # Needed for ceil
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -53,7 +53,7 @@ class SentItemEntry(BaseModel):
     item_type: str # 'inscripcion' o 'permiso'
     sent_type: str # 'cobro', 'credencial', 'pdf'
     email: Optional[str] = None
-    date_sent: datetime.datetime
+    date_sent: Optional[datetime.datetime] = None  # Opcional, se genera en el servidor si no se proporciona
 
 class SendPaymentLinkRequest(BaseModel):
     inscription_id: str
@@ -577,23 +577,75 @@ async def log_sent_item_endpoint(item_data: SentItemEntry):
         await log_activity('ERROR', 'log_sent_item_failed', f"Error al registrar ítem enviado: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al registrar ítem enviado: {e}")
 
-@app.post("/api/send-payment-link", response_model=Dict[str, str]) # NUEVO
+@app.post("/api/send-payment-link", response_model=Dict[str, str])
 async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
     await log_activity('INFO', 'send_payment_link_request', f'Solicitud para enviar link de pago a: {request_data.email} para inscripción: {request_data.inscription_id}')
     try:
-        # TODO: Generar link de pago real (integración con MercadoPago o similar)
-        # Por ahora, un placeholder
-        payment_link = "https://example.com/mock_payment_link/inscripciones/" + request_data.inscription_id 
+        # Leer la pestaña de precios desde Google Sheets
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        if not sheet_id:
+            raise ValueError("GOOGLE_SHEET_ID no configurado.")
+
+        precios_df = sheets_services.read_sheet_data(sheet_id, "precios")
+
+        # Buscar el precio según el tipo de establecimiento
+        tipo_establecimiento = request_data.tipo_establecimiento
+        precio_row = None
+
+        # Mapear el tipo de establecimiento a la actividad en la pestaña precios
+        if tipo_establecimiento and "area libre" in tipo_establecimiento.lower():
+            precio_row = precios_df[precios_df['Actividad'].str.contains("Area Libre", case=False, na=False)]
+        elif tipo_establecimiento and "criadero" in tipo_establecimiento.lower():
+            precio_row = precios_df[precios_df['Actividad'].str.contains("Criadero", case=False, na=False) &
+                                   precios_df['Actividad'].str.contains("Establecimiento", case=False, na=False)]
+
+        if precio_row is None or precio_row.empty:
+            raise ValueError(f"No se encontró precio para el tipo de establecimiento: {tipo_establecimiento}")
+
+        # Obtener el valor y limpiarlo (remover $, espacios, comas)
+        precio_str = precio_row.iloc[0]['Valor']
+        precio_limpio = precio_str.replace('$', '').replace(',', '').replace('.', '').strip()
+        precio = float(precio_limpio) / 100  # Convertir centavos a pesos
+
+        # Crear preferencia de pago en MercadoPago
+        payment_result = mercadopago_services.create_payment_preference(
+            title=f"Inscripción {tipo_establecimiento} - {request_data.inscription_id}",
+            price=precio,
+            external_reference=request_data.inscription_id,
+            payer_email=request_data.email
+        )
+
+        if not payment_result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al crear link de pago: {payment_result['error']}"
+            )
+
+        payment_link = payment_result["init_point"]
+
+        # Formatear el precio para mostrar
+        precio_formateado = f"${precio:,.2f}".replace(',', '.')
 
         subject = f"Enlace de pago para su inscripción {request_data.inscription_id}"
         html_content = f"""
         <html>
-            <body>
-                <p>Estimado/a {request_data.nombre_establecimiento},</p>
-                <p>Adjunto encontrará el enlace para realizar el pago de su inscripción <b>{request_data.inscription_id}</b> ({request_data.tipo_establecimiento}).</p>
-                <p>Puede realizar el pago haciendo click en el siguiente enlace: <a href="{payment_link}">{payment_link}</a></p>
-                <p>Gracias.</p>
-                <p>El equipo de Caza 2026</p>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Pago de Inscripción</h2>
+                <p>Estimado/a <strong>{request_data.nombre_establecimiento}</strong>,</p>
+                <p>Adjunto encontrará el enlace para realizar el pago de su inscripción:</p>
+                <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-left: 4px solid #009ee3;">
+                    <p><strong>Número de Inscripción:</strong> {request_data.inscription_id}</p>
+                    <p><strong>Tipo:</strong> {request_data.tipo_establecimiento}</p>
+                    <p><strong>Monto:</strong> {precio_formateado} ARS</p>
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{payment_link}" style="background-color: #009ee3; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold;">
+                        💳 Pagar con MercadoPago
+                    </a>
+                </div>
+                <p style="font-size: 12px; color: #666;">Será redirigido a MercadoPago para completar el pago de forma segura.</p>
+                <p>Gracias por su inscripción.</p>
+                <p><strong>El equipo de Caza 2026</strong></p>
             </body>
         </html>
         """
@@ -608,8 +660,9 @@ async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
 
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro.")
-        
-        return {"message": "Email de cobro enviado exitosamente."}
+
+        await log_activity('INFO', 'payment_link_sent', f'Link de pago enviado a {request_data.email}. Monto: {precio_formateado}. Preference ID: {payment_result["preference_id"]}')
+        return {"message": "Email de cobro enviado exitosamente con link de MercadoPago."}
     except Exception as e:
         await log_activity('ERROR', 'send_payment_link_failed', f"Error al enviar link de pago: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar link de pago: {e}")
@@ -734,18 +787,68 @@ async def view_credential_endpoint(numero_inscripcion: str):
 async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLinkRequest):
     await log_activity('INFO', 'send_permiso_payment_link_request', f'Solicitud para enviar link de pago de permiso a: {request_data.email} para permiso: {request_data.permiso_id}')
     try:
-        # TODO: Generar link de pago real (integración con MercadoPago o similar)
-        payment_link = "https://example.com/mock_payment_link/permisos/" + request_data.permiso_id
+        # Leer la pestaña de precios desde Google Sheets
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        if not sheet_id:
+            raise ValueError("GOOGLE_SHEET_ID no configurado.")
+
+        precios_df = sheets_services.read_sheet_data(sheet_id, "precios")
+
+        # Buscar el precio según la categoría del permiso
+        categoria = request_data.categoria
+        if not categoria:
+            raise ValueError("Categoría del permiso no especificada.")
+
+        # Buscar en la pestaña precios la actividad que contenga la categoría
+        precio_row = precios_df[precios_df['Actividad'].str.contains(categoria, case=False, na=False)]
+
+        if precio_row.empty:
+            raise ValueError(f"No se encontró precio para la categoría de permiso: {categoria}")
+
+        # Obtener el valor y limpiarlo
+        precio_str = precio_row.iloc[0]['Valor']
+        precio_limpio = precio_str.replace('$', '').replace(',', '').replace('.', '').strip()
+        precio = float(precio_limpio) / 100  # Convertir centavos a pesos
+
+        # Crear preferencia de pago en MercadoPago
+        payment_result = mercadopago_services.create_payment_preference(
+            title=f"Permiso de Caza - {categoria} - {request_data.permiso_id}",
+            price=precio,
+            external_reference=request_data.permiso_id,
+            payer_email=request_data.email
+        )
+
+        if not payment_result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al crear link de pago: {payment_result['error']}"
+            )
+
+        payment_link = payment_result["init_point"]
+
+        # Formatear el precio para mostrar
+        precio_formateado = f"${precio:,.2f}".replace(',', '.')
 
         subject = f"Enlace de pago para su permiso de caza {request_data.permiso_id}"
         html_content = f"""
         <html>
-            <body>
-                <p>Estimado/a {request_data.nombre_apellido},</p>
-                <p>Adjunto encontrará el enlace para realizar el pago de su permiso de caza <b>{request_data.permiso_id}</b> ({request_data.categoria}).</p>
-                <p>Puede realizar el pago haciendo click en el siguiente enlace: <a href="{payment_link}">{payment_link}</a></p>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Pago de Permiso de Caza</h2>
+                <p>Estimado/a <strong>{request_data.nombre_apellido}</strong>,</p>
+                <p>Adjunto encontrará el enlace para realizar el pago de su permiso de caza:</p>
+                <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-left: 4px solid #28a745;">
+                    <p><strong>Número de Permiso:</strong> {request_data.permiso_id}</p>
+                    <p><strong>Categoría:</strong> {request_data.categoria}</p>
+                    <p><strong>Monto:</strong> {precio_formateado} ARS</p>
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{payment_link}" style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold;">
+                        💳 Pagar con MercadoPago
+                    </a>
+                </div>
+                <p style="font-size: 12px; color: #666;">Será redirigido a MercadoPago para completar el pago de forma segura.</p>
                 <p>Gracias.</p>
-                <p>El equipo de Caza 2026</p>
+                <p><strong>El equipo de Caza 2026</strong></p>
             </body>
         </html>
         """
@@ -761,7 +864,8 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro del permiso.")
 
-        return {"message": "Email de cobro de permiso enviado exitosamente."}
+        await log_activity('INFO', 'permiso_payment_link_sent', f'Link de pago de permiso enviado a {request_data.email}. Monto: {precio_formateado}. Preference ID: {payment_result["preference_id"]}')
+        return {"message": "Email de cobro de permiso enviado exitosamente con link de MercadoPago."}
     except Exception as e:
         await log_activity('ERROR', 'send_permiso_payment_link_failed', f"Error al enviar link de pago de permiso: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar link de pago de permiso: {e}")
