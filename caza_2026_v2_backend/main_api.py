@@ -248,17 +248,100 @@ async def get_logs(page: int = Query(1, ge=1), limit: int = Query(15, ge=1, le=1
         await log_activity('ERROR', 'get_logs_failed', f"Error al obtener logs: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch logs.")
 
-@app.post("/api/link-data", response_model=Dict[str, str])
+@app.post("/api/link-data", response_model=Dict[str, Any])
 async def link_data_endpoint():
     """
-    Endpoint placeholder para vincular datos.
-    Actualmente devuelve éxito sin realizar acciones específicas.
+    Sincroniza datos entre la base de datos, Google Sheets y Mercado Pago.
+    
+    Realiza las siguientes acciones:
+    1. Lee inscripciones desde Google Sheets
+    2. Consulta estados de pago desde la base de datos
+    3. Actualiza Google Sheets con los estados de pago actualizados
+    4. Devuelve un resumen de las actualizaciones realizadas
     """
-    await log_activity('INFO', 'link_data_request', 'Solicitud de vinculación de datos recibida.')
+    await log_activity('INFO', 'link_data_request', 'Iniciando vinculación de datos.')
     try:
-        # TODO: Implementar lógica de vinculación de datos si es necesario
-        # Por ahora, simplemente devuelve éxito
-        return {"message": "Datos vinculados exitosamente."}
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        inscripciones_tab_name = "inscrip"
+        
+        if not sheet_id:
+            raise HTTPException(status_code=500, detail="GOOGLE_SHEET_ID no configurado")
+        
+        # 1. Leer inscripciones desde Google Sheets
+        inscripciones_data = sheets_services.read_sheet(sheet_id, inscripciones_tab_name)
+        if not inscripciones_data or len(inscripciones_data) < 2:
+            return {"message": "No hay inscripciones para vincular.", "updated_count": 0}
+        
+        headers = inscripciones_data[0]
+        rows = inscripciones_data[1:]
+        
+        # Encontrar índice de columnas importantes
+        try:
+            numero_inscripcion_idx = headers.index('numero_inscripcion')
+            estado_pago_idx = headers.index('Estado de Pago') if 'Estado de Pago' in headers else None
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=f"Columna requerida no encontrada: {e}")
+        
+        # 2. Sincronizar con base de datos
+        updated_count = 0
+        updates_to_write = []
+        
+        for row_idx, row in enumerate(rows, start=2):  # start=2 porque la fila 1 son headers
+            if len(row) <= numero_inscripcion_idx:
+                continue
+                
+            numero_inscripcion = row[numero_inscripcion_idx]
+            if not numero_inscripcion:
+                continue
+            
+            # Consultar estado de pago en la base de datos
+            pago_query = select(pagos).where(
+                (pagos.c.inscription_id == numero_inscripcion) & 
+                (pagos.c.status == 'approved')
+            ).order_by(desc(pagos.c.date_created))
+            
+            pago_result = await database.fetch_one(pago_query)
+            
+            # Determinar nuevo estado
+            if pago_result:
+                nuevo_estado = "Pagado"
+            else:
+                # Verificar si existe algún pago (aunque no esté aprobado)
+                any_pago_query = select(pagos).where(pagos.c.inscription_id == numero_inscripcion)
+                any_pago = await database.fetch_one(any_pago_query)
+                nuevo_estado = any_pago['status'].capitalize() if any_pago else "Pendiente"
+            
+            # Verificar si necesita actualización
+            estado_actual = row[estado_pago_idx] if estado_pago_idx and len(row) > estado_pago_idx else ""
+            
+            if estado_actual != nuevo_estado:
+                # Preparar actualización
+                if estado_pago_idx is not None:
+                    # Asegurar que la fila tenga suficientes columnas
+                    while len(row) <= estado_pago_idx:
+                        row.append("")
+                    
+                    updates_to_write.append({
+                        'row': row_idx,
+                        'col': estado_pago_idx + 1,  # +1 porque Sheets usa índice 1-based
+                        'value': nuevo_estado
+                    })
+                    updated_count += 1
+        
+        # 3. Escribir actualizaciones a Google Sheets
+        if updates_to_write:
+            for update in updates_to_write:
+                cell_range = f"{inscripciones_tab_name}!{chr(65 + update['col'] - 1)}{update['row']}"
+                sheets_services.update_cell(sheet_id, cell_range, [[update['value']]])
+        
+        await log_activity('INFO', 'link_data_success', f'Vinculación completada. {updated_count} registros actualizados.')
+        
+        return {
+            "message": f"Datos vinculados exitosamente. {updated_count} registros actualizados.",
+            "updated_count": updated_count,
+            "total_checked": len(rows)
+        }
+        
     except Exception as e:
         await log_activity('ERROR', 'link_data_failed', f"Error al vincular datos: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al vincular datos: {e}")
