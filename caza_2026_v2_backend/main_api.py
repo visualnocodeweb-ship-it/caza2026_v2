@@ -129,6 +129,9 @@ app.add_middleware(
 # --- No-Cache Middleware for API ---
 @app.middleware("http")
 async def add_no_cache_header(request, call_next):
+    # Log ALL requests to see what is hitting the server
+    print(f"DEBUG MIDDLEWARE: Incoming request: {request.method} {request.url.path}", flush=True)
+    
     response = await call_next(request)
     if request.url.path.startswith("/api"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
