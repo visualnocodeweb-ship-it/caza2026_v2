@@ -27,6 +27,60 @@ def get_sheets_service():
     _cached_sheets_service = service
     return service
 
+def read_sheet(sheet_id, sheet_name):
+    """
+    Lee los datos de una hoja de cálculo específica de Google Sheets y los devuelve como una lista de listas.
+    """
+    service = get_sheets_service()
+    
+    # Manejar el nombre de la hoja para la API de Google Sheets
+    if ' ' in sheet_name or "'" in sheet_name:
+        processed_sheet_name = sheet_name.replace("'", "''")
+        range_name = f"'{processed_sheet_name}'!A:ZZ"
+    else:
+        range_name = f"{sheet_name}!A:ZZ"
+
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=range_name
+        ).execute()
+        values = result.get('values', [])
+        return values
+    except Exception as e:
+        logging.error(f"Error al leer datos de la hoja {sheet_id}/{sheet_name}: {e}", exc_info=True)
+        raise
+
+def update_cell(sheet_id, cell_range, values):
+    """
+    Actualiza una celda o rango de celdas en Google Sheets.
+    
+    Args:
+        sheet_id (str): El ID de la hoja de cálculo de Google.
+        cell_range (str): El rango a actualizar (ej. 'Sheet1!A1' o 'Sheet1!A1:B2').
+        values (list of list): Los valores a escribir, como [[valor1], [valor2]].
+    
+    Returns:
+        dict: El resultado de la operación de la API de Google Sheets.
+    """
+    service = get_sheets_service()
+    
+    body = {
+        'values': values
+    }
+    
+    try:
+        result = service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=cell_range,
+            valueInputOption="RAW",
+            body=body
+        ).execute()
+        return result
+    except Exception as e:
+        logging.error(f"Error al actualizar celda {cell_range} en {sheet_id}: {e}", exc_info=True)
+        raise
+
 def read_sheet_data(sheet_id, sheet_name):
     """
     Lee los datos de una hoja de cálculo específica de Google Sheets y los devuelve como un DataFrame de Pandas.
@@ -326,3 +380,4 @@ if __name__ == '__main__':
                 logging.warning("No se pudo leer la hoja de cálculo o está vacía.")
         except Exception as e:
             logging.error(f"Error durante la prueba de read_sheet_data: {e}", exc_info=True)
+
