@@ -1292,4 +1292,6 @@ if os.path.exists(frontend_build_path):
         return response
 else:
     print(f"WARNING: Frontend build directory not found at {frontend_build_path}. Static files will not be served.")
-
+    print(f"DEBUG: Current working directory: {os.getcwd()}")
+    print(f"DEBUG: __file__ location: {os.path.abspath(__file__)}")
+    print(f"DEBUG: Computed frontend_build_path: {os.path.abspath(frontend_build_path)}")
