@@ -1,7 +1,10 @@
 // src/utils/api.js
 // This file will contain functions to interact with your backend API
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'; // Example backend URL
+// Use relative path in production, localhost in development
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+  ? '/api'
+  : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
 
 export const fetchInscripciones = async (page = 1, limit = 10) => {
   try {
@@ -301,18 +304,18 @@ export const fetchTotalInscripciones = async () => {
 };
 
 export const fetchPermisosStats = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/permisos/stats`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Error fetching permisos stats:", error);
-      return { total_permisos: 0, daily_stats: [], monthly_stats: [] };
+  try {
+    const response = await fetch(`${API_BASE_URL}/permisos/stats`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching permisos stats:", error);
+    return { total_permisos: 0, daily_stats: [], monthly_stats: [] };
+  }
+};
 
 export const fetchRecaudacionesStats = async () => {
   try {
@@ -364,15 +367,15 @@ export const fetchSentItems = async () => {
 };
 
 export const fetchLogs = async (page = 1, limit = 15) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/logs?page=${page}&limit=${limit}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Error fetching logs:", error);
-      return { data: [], total_records: 0, page: 1, limit: 15, total_pages: 0 };
+  try {
+    const response = await fetch(`${API_BASE_URL}/logs?page=${page}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching logs:", error);
+    return { data: [], total_records: 0, page: 1, limit: 15, total_pages: 0 };
+  }
+};
