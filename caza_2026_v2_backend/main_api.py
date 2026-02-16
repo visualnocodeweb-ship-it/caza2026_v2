@@ -1247,6 +1247,10 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
 #   /caza_2026_v2_frontend/build
 frontend_build_path = os.path.join(os.path.dirname(__file__), "..", "caza_2026_v2_frontend", "build")
 
+@app.get("/api/test-routing")
+async def test_routing():
+    return {"status": "routing_works", "message": "Si ves esto, las rutas API funcionan."}
+
 if os.path.exists(frontend_build_path):
     # Mount static assets (JS, CSS, images)
     app.mount("/static", StaticFiles(directory=os.path.join(frontend_build_path, "static")), name="static")
@@ -1260,7 +1264,7 @@ if os.path.exists(frontend_build_path):
         
         # Don't catch API routes or health check
         if path.startswith("api/") or path == "health":
-             raise HTTPException(status_code=404, detail="API Endpoint Not Found")
+             raise HTTPException(status_code=404, detail=f"API Endpoint Not Found: {path}")
 
         # Check if a specific file was requested (e.g. manifest.json, favicon.ico)
         file_path = os.path.join(frontend_build_path, path)
@@ -1268,8 +1272,11 @@ if os.path.exists(frontend_build_path):
             return FileResponse(file_path)
         
         # Fallback to index.html for React Router
-        print(f"DEBUG: Serving index.html for path: {full_path}") # Log catch-all usage
-        return FileResponse(os.path.join(frontend_build_path, "index.html"))
+        print(f"DEBUG: Serving index.html for path: {full_path}") 
+        response = FileResponse(os.path.join(frontend_build_path, "index.html"))
+        response.headers["X-Debug-Path"] = full_path
+        response.headers["X-Debug-Check"] = f"startswith_api={path.startswith('api/')}"
+        return response
 else:
     print(f"WARNING: Frontend build directory not found at {frontend_build_path}. Static files will not be served.")
 
