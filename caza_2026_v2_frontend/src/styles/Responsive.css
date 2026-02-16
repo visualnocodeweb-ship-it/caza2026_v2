@@ -5,92 +5,142 @@
     display: block;
     width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scrolling on iOS */
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
 }
 
 @media (max-width: 768px) {
+    .app-main {
+        padding: 1rem;
+    }
+
+    .app-header {
+        padding: 1rem;
+    }
+
+    .app-logo {
+        max-width: 120px;
+    }
+
+    .app-title {
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
     .dashboard-subnav {
-        flex-wrap: wrap; /* Allow nav items to wrap on small screens */
-        justify-content: center; /* Center the items when they wrap */
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+        justify-content: flex-start;
+        /* Alignment for scrolling */
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .subnav-item {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
     }
 
     .toolbar {
-        flex-direction: column; /* Stack toolbar items vertically */
-        align-items: stretch; /* Make items fill the width */
+        flex-direction: column;
+        /* Stack toolbar items vertically */
+        align-items: stretch;
+        /* Make items fill the width */
+        gap: 1rem;
+        padding: 1rem;
     }
 
     .toolbar .search-input,
-    .toolbar .action-button {
-        width: 100%; /* Make search and button full width */
-        box-sizing: border-box; /* Proper box model calculation */
-    }
-
-    .payments-table th,
-    .payments-table td {
-        font-size: 0.8em; /* Smaller font for smaller screens */
-        padding: 6px; /* Adjust padding */
-    }
-
-    .pagination-controls {
-        flex-direction: column; /* Stack controls vertically */
-        gap: 10px;
-    }
-
-    .pagination-controls button {
-        width: 100%; /* Full-width buttons */
-        padding: 10px;
-    }
-
-    .view-toggle {
-        flex-direction: column; /* Stack toggle buttons */
-        gap: 8px;
-    }
-
-    .view-toggle button {
+    .toolbar .action-button,
+    .toolbar .whatsapp-link {
         width: 100%;
+        /* Make search and button full width */
+        box-sizing: border-box;
+        /* Proper box model calculation */
+        min-width: 0;
+        /* Allow shrinking */
     }
 
-    .container {
-        padding: 10px;
-        margin: 10px auto;
+    .stat-widget-container {
+        grid-template-columns: 1fr;
+        /* Single column on mobile */
+        gap: 1rem;
     }
 
-    .title {
-        font-size: 1.5em; /* Adjust title size */
+    .stat-widget {
+        padding: 1.5rem;
+    }
+
+    .stat-widget-count {
+        font-size: 2rem;
     }
 
     /* Inscripciones page responsive styles */
     .inscripciones-list {
-        gap: 15px;
+        gap: 1rem;
     }
 
-    .inscripcion-card .card-header h3 {
-        font-size: 1em;
+    .card-header {
+        padding: 0.75rem 1rem;
     }
 
-    .inscripcion-card .card-details p {
-        font-size: 0.85em;
+    .card-header h3 {
+        font-size: 1rem;
     }
 
-    .inscripcion-card .action-buttons {
+    .card-details {
+        padding: 1rem;
+        grid-template-columns: 1fr;
+        /* Stack details */
+        gap: 1rem;
+    }
+
+    .detail-item {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: baseline;
+        border-bottom: 1px dashed var(--border-color);
+        padding-bottom: 0.5rem;
+    }
+
+    .detail-item:last-child {
+        border-bottom: none;
+    }
+
+    .action-buttons {
         display: flex;
-        flex-wrap: wrap;
-        gap: 8px; /* space between buttons */
-        justify-content: center; /* Center buttons */
-        margin-top: 10px;
+        flex-direction: column;
+        /* Stack buttons vertically on mobile */
+        gap: 0.75rem;
+        /* Space between buttons */
+        width: 100%;
     }
 
-    .inscripcion-card .action-buttons .action-button,
-    .inscripcion-card .action-buttons a.action-button {
-        width: calc(50% - 8px); /* Two buttons per row with a gap */
-        margin-left: 0 !important;
+    .action-button {
+        width: 100%;
+        /* Full width buttons */
+        padding: 0.75rem 1rem;
+        /* Larger touch target */
+        justify-content: center;
+        margin: 0 !important;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    html {
+        font-size: 14px;
+        /* Slightly smaller base font */
+    }
+
+    .nav-item {
+        flex: 1 1 45%;
+        /* 2 items per row */
         text-align: center;
-        font-size: 0.8em; /* Smaller font for smaller buttons */
+        padding: 0.5rem;
     }
-
-    /* Adjust for an odd number of buttons */
-    .inscripcion-card .action-buttons .action-button:last-child:nth-child(odd) {
-        width: 100%; /* Make the last button full width if it's odd */
-    }
-
 }
