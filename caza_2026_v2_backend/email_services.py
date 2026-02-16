@@ -29,6 +29,11 @@ def send_email_with_attachment(to_email: str, subject: str, html_content: str, s
         bool: True si el correo se envió con éxito, False en caso contrario.
     """
     try:
+        import base64
+        
+        # Resend requiere que el contenido del adjunto esté codificado en base64
+        attachment_base64 = base64.b64encode(attachment_content).decode('utf-8')
+        
         params = {
             "from": sender_email,
             "to": [to_email],
@@ -37,7 +42,7 @@ def send_email_with_attachment(to_email: str, subject: str, html_content: str, s
             "attachments": [
                 {
                     "filename": attachment_filename,
-                    "content": attachment_content,
+                    "content": attachment_base64,
                 }
             ],
         }
