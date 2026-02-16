@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import datetime
+import pandas as pd # Import pandas for data manipulation
 from sqlalchemy import select, func, desc
 from .database import database, engine, metadata
 from .models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items
@@ -262,7 +263,7 @@ async def create_inscripcion(inscripcion: InscriptionCreate):
             ]
         ]
         
-        sheets_services.append_sheet_data(sheet_id, inscripciones_sheet_name, values_to_append)
+        sheets_services.append_sheet_data(sheet_id, inscripciones_tab_name, values_to_append)
         
         # Opcional: registrar en la base de datos si tienes un modelo para inscripciones
         # await database.execute(inscripciones.insert().values(...))
@@ -373,7 +374,7 @@ async def create_permiso(permiso: PermisoCreate):
             ]
         ]
         
-        sheets_services.append_sheet_data(sheet_id, permisos_sheet_name, values_to_append)
+        sheets_services.append_sheet_data(sheet_id, permisos_tab_name, values_to_append)
         
         # Opcional: registrar en la base de datos si tienes un modelo para permisos
         # await database.execute(permisos.insert().values(...))
@@ -383,6 +384,69 @@ async def create_permiso(permiso: PermisoCreate):
     except Exception as e:
         await log_activity('ERROR', 'create_permiso_failed', f"Error al crear permiso: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al crear permiso: {e}")
+
+@app.get("/api/permisos/stats", response_model=Dict[str, Any])
+async def get_permisos_stats():
+    await log_activity('INFO', 'get_permisos_stats_request', 'Solicitud de estadísticas de permisos')
+    try:
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME")
+        permisos_tab_name = "permisos"
+        
+        if not sheet_id or not main_sheet_name_env:
+            raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
+
+        df = sheets_services.read_sheet_data(sheet_id, permisos_tab_name)
+        
+        if df.empty:
+            return {"total_permisos": 0, "daily_stats": [], "monthly_stats": []}
+
+        # Intentar identificar la columna de fecha
+        date_col = None
+        possible_date_cols = ['Fecha', 'Fecha Creacion', 'fecha', 'timestamp', 'Timestamp', 'Date']
+        
+        # Buscar por nombre
+        for col in df.columns:
+            if any(p.lower() in col.lower() for p in possible_date_cols):
+                date_col = col
+                break
+        
+        # Si no se encuentra por nombre, usar la última columna si parece fecha
+        if not date_col and not df.empty:
+             date_col = df.columns[-1]
+
+        total_permisos = len(df)
+        daily_stats = []
+        monthly_stats = []
+
+        if date_col:
+            try:
+                # Convertir a datetime, manejando errores
+                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+                
+                # Filtrar fechas inválidas (NaT)
+                df_dates = df.dropna(subset=[date_col])
+
+                # Agrupar por día
+                daily_counts = df_dates.groupby(df_dates[date_col].dt.date).size().reset_index(name='count')
+                daily_stats = [{"date": str(row[date_col]), "count": row['count']} for _, row in daily_counts.iterrows()]
+                
+                # Agrupar por mes
+                monthly_counts = df_dates.groupby(df_dates[date_col].dt.to_period('M')).size().reset_index(name='count')
+                monthly_stats = [{"month": str(row[date_col]), "count": row['count']} for _, row in monthly_counts.iterrows()]
+
+            except Exception as e:
+                await log_activity('WARNING', 'stats_date_parsing_failed', f"Error al procesar fechas en columna {date_col}: {e}")
+        
+        return {
+            "total_permisos": total_permisos,
+            "daily_stats": daily_stats,
+            "monthly_stats": monthly_stats
+        }
+
+    except Exception as e:
+        await log_activity('ERROR', 'get_permisos_stats_failed', f"Error al obtener estadísticas: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener estadísticas: {e}")
 
 @app.get("/api/sent-items", response_model=Dict[str, Any])
 async def get_sent_items(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):

@@ -300,17 +300,17 @@ export const fetchTotalInscripciones = async () => {
   }
 };
 
-export const fetchTotalPermisos = async () => {
+export const fetchPermisosStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/stats/total-permisos`);
+      const response = await fetch(`${API_BASE_URL}/permisos/stats`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("Error fetching total permisos:", error);
-      return { total_permisos: 0 };
+      console.error("Error fetching permisos stats:", error);
+      return { total_permisos: 0, daily_stats: [], monthly_stats: [] };
     }
   };
 
