@@ -1,5 +1,5 @@
 from googleapiclient import discovery, http
-from auth_services import get_google_credentials
+from .auth_services import get_google_credentials
 from dotenv import load_dotenv
 import os
 import io
