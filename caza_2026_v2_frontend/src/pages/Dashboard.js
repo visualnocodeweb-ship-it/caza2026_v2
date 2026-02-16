@@ -3,24 +3,25 @@ import { Link, Outlet, NavLink } from 'react-router-dom';
 // import '../../styles/App.css'; // Esto ya se carga globalmente en App.js
 
 const Dashboard = () => {
+  console.log("Dashboard component mounted"); // DEBUG
   return (
     <div>
       <h2>Dashboard</h2>
       <nav className="dashboard-subnav">
-        <NavLink 
-          to="/dashboard/inscripciones" 
+        <NavLink
+          to="/dashboard/inscripciones"
           className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
         >
           Inscripciones
         </NavLink>
-        <NavLink 
-            to="/dashboard/permisos" 
-            className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
+        <NavLink
+          to="/dashboard/permisos"
+          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
         >
-            Permisos
+          Permisos
         </NavLink>
-        <NavLink 
-          to="/dashboard/recaudaciones" 
+        <NavLink
+          to="/dashboard/recaudaciones"
           className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
         >
           Recaudaciones
