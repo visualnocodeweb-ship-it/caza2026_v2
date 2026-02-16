@@ -11,6 +11,7 @@ const InscripcionesStats = () => {
     const getStats = async () => {
       try {
         setLoading(true);
+        console.log("InscripcionesStats mounting, fetching data..."); // DEBUG
         const data = await fetchTotalInscripciones();
         setTotalInscripciones(data.total_inscripciones);
       } catch (error) {
