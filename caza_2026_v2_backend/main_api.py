@@ -248,6 +248,21 @@ async def get_logs(page: int = Query(1, ge=1), limit: int = Query(15, ge=1, le=1
         await log_activity('ERROR', 'get_logs_failed', f"Error al obtener logs: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch logs.")
 
+@app.post("/api/link-data", response_model=Dict[str, str])
+async def link_data_endpoint():
+    """
+    Endpoint placeholder para vincular datos.
+    Actualmente devuelve éxito sin realizar acciones específicas.
+    """
+    await log_activity('INFO', 'link_data_request', 'Solicitud de vinculación de datos recibida.')
+    try:
+        # TODO: Implementar lógica de vinculación de datos si es necesario
+        # Por ahora, simplemente devuelve éxito
+        return {"message": "Datos vinculados exitosamente."}
+    except Exception as e:
+        await log_activity('ERROR', 'link_data_failed', f"Error al vincular datos: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al vincular datos: {e}")
+
 
 @app.post("/api/inscripciones", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def create_inscripcion(inscripcion: InscriptionCreate):
