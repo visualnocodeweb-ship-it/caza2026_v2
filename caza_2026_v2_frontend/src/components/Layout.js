@@ -1,9 +1,6 @@
-import React from 'react';
-import Navbar from './Navbar';
-import GuardafaunaLogo from '../assets/Guardafauna - 1.png'; // Corrected path to the image
-import '../styles/App.css'; // Import global styles
+import { Outlet } from 'react-router-dom'; // Import Outlet
 
-const Layout = ({ children }) => {
+const Layout = () => { // Remove children prop
   return (
     <div className="app-container">
       <header className="app-header">
@@ -14,7 +11,7 @@ const Layout = ({ children }) => {
         <Navbar />
       </header>
       <main className="app-main">
-        {children}
+        <Outlet />
       </main>
       <footer className="app-footer">
       </footer>
