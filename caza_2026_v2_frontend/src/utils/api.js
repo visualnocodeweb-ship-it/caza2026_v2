@@ -10,7 +10,9 @@ const API_BASE_URL = '/api';
 
 export const fetchInscripciones = async (page = 1, limit = 10) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/inscripciones?page=${page}&limit=${limit}`);
+    const url = `${API_BASE_URL}/inscripciones?page=${page}&limit=${limit}`;
+    console.log("Fetching URL:", url); // DEBUG
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
