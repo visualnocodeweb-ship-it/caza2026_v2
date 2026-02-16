@@ -2,9 +2,11 @@
 // This file will contain functions to interact with your backend API
 
 // Use relative path in production, localhost in development
-const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? '/api'
-  : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
+// Force relative path for debugging
+const API_BASE_URL = '/api';
+// const API_BASE_URL = process.env.NODE_ENV === 'production'
+//   ? '/api'
+//   : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
 
 export const fetchInscripciones = async (page = 1, limit = 10) => {
   try {
