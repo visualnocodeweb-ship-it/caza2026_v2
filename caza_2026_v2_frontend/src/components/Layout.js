@@ -1,4 +1,8 @@
-import { Outlet } from 'react-router-dom'; // Import Outlet
+import React from 'react';
+import { Outlet } from 'react-router-dom';
+import Navbar from './Navbar';
+import GuardafaunaLogo from '../assets/Guardafauna - 1.png';
+import '../styles/App.css';
 
 const Layout = () => { // Remove children prop
   return (
