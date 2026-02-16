@@ -1,13 +1,20 @@
 :root {
   /* Corporate Palette - Modern & Clean */
-  --primary-color: #2E5661; /* Dark Teal - Main Brand Color */
+  --primary-color: #2E5661;
+  /* Dark Teal - Main Brand Color */
   --primary-color-darker: #1A3B43;
-  --secondary-color: #A8C289; /* Soft Green - Accents */
-  --secondary-color-lighter: #E6EFF2; /* Very Light Blue/Gray */
-  --text-color-dark: #1F2937; /* Very Dark Gray (almost black) for text */
-  --text-color-light: #6B7280; /* Gray for secondary text */
-  --border-color: #E5E7EB; /* Light Gray for borders */
-  --background-light: #F3F4F6; /* Light Gray for page background */
+  --secondary-color: #A8C289;
+  /* Soft Green - Accents */
+  --secondary-color-lighter: #E6EFF2;
+  /* Very Light Blue/Gray */
+  --text-color-dark: #1F2937;
+  /* Very Dark Gray (almost black) for text */
+  --text-color-light: #6B7280;
+  /* Gray for secondary text */
+  --border-color: #E5E7EB;
+  /* Light Gray for borders */
+  --background-light: #F3F4F6;
+  /* Light Gray for page background */
   --white: #FFFFFF;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -180,7 +187,8 @@ body {
   justify-content: center;
   color: var(--white);
   box-shadow: var(--shadow-sm);
-  gap: 0.5rem; /* Gap for icon + text */
+  gap: 0.5rem;
+  /* Gap for icon + text */
 }
 
 .action-button:hover:not(:disabled) {
@@ -204,11 +212,13 @@ body {
 }
 
 .btn-info {
-  background-color: #0EA5E9; /* Sky Blue */
+  background-color: #0EA5E9;
+  /* Sky Blue */
 }
 
 .btn-success {
-    background-color: #10B981; /* Emerald Green */
+  background-color: #10B981;
+  /* Emerald Green */
 }
 
 /* --- Inscripciones Redesign --- */
@@ -226,12 +236,13 @@ body {
   text-align: left;
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
-  overflow: hidden; /* Contains children */
+  overflow: hidden;
+  /* Contains children */
 }
 
 .inscripcion-card:hover {
-    box-shadow: var(--shadow-md);
-    border-color: #D1D5DB;
+  box-shadow: var(--shadow-md);
+  border-color: #D1D5DB;
 }
 
 .card-header {
@@ -241,7 +252,8 @@ body {
   cursor: pointer;
   padding: 1rem 1.5rem;
   background-color: var(--white);
-  border-bottom: 1px solid transparent; /* Hidden by default */
+  border-bottom: 1px solid transparent;
+  /* Hidden by default */
   transition: background-color 0.2s ease;
 }
 
@@ -264,7 +276,7 @@ body {
 }
 
 .inscripcion-card[data-expanded="true"] .expand-toggle {
-    transform: rotate(180deg);
+  transform: rotate(180deg);
 }
 
 .card-details {
@@ -296,14 +308,16 @@ body {
 }
 
 .action-buttons {
-    grid-column: 1 / -1; /* Span full width */
-    margin-top: 1rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    justify-content: flex-end; /* Align buttons to the right */
+  grid-column: 1 / -1;
+  /* Span full width */
+  margin-top: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  /* Align buttons to the right */
 }
 
 /* --- Toolbar and Search --- */
@@ -333,7 +347,8 @@ body {
 
 .search-input:focus {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(46, 86, 97, 0.1); /* Primary color w/ opacity */
+  box-shadow: 0 0 0 3px rgba(46, 86, 97, 0.1);
+  /* Primary color w/ opacity */
 }
 
 /* WhatsApp Button Styles */
@@ -341,7 +356,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: #10B981; /* Emerald Green */
+  color: #10B981;
+  /* Emerald Green */
   text-decoration: none;
   font-weight: 600;
   font-size: 0.9rem;
@@ -355,56 +371,106 @@ body {
 }
 
 /* Helper Classes */
-.text-success { color: #10B981; }
-.text-danger { color: #EF4444; }
-.text-warning { color: #F59E0B; }
-.text-info { color: #3B82F6; }
+.text-success {
+  color: #10B981;
+}
+
+.text-danger {
+  color: #EF4444;
+}
+
+.text-warning {
+  color: #F59E0B;
+}
+
+.text-info {
+  color: #3B82F6;
+}
 
 /* Logs Table Styles */
 .logs-container {
-    padding: 0;
+  padding: 0;
 }
 
 .logs-table {
-    width: 100%;
-    border-collapse: separate; /* Changed from collapse for border-radius */
-    border-spacing: 0;
-    font-size: 0.9rem;
+  width: 100%;
+  border-collapse: separate;
+  /* Changed from collapse for border-radius */
+  border-spacing: 0;
+  font-size: 0.9rem;
 }
 
-.logs-table th, .logs-table td {
-    padding: 0.75rem 1rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
+.logs-table th,
+.logs-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .logs-table th {
-    background-color: var(--background-light);
-    font-weight: 600;
-    color: var(--text-color-dark);
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-    position: sticky;
-    top: 0;
+  background-color: var(--background-light);
+  font-weight: 600;
+  color: var(--text-color-dark);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
 }
 
 .logs-table tr:last-child td {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .log-level {
-    padding: 0.25rem 0.5rem;
-    border-radius: 9999px; /* Pill shape */
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-align: center;
-    display: inline-block;
-    min-width: 60px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  /* Pill shape */
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  display: inline-block;
+  min-width: 60px;
 }
 
-.log-level-info { background-color: #E0F2FE; color: #0369A1; }
-.log-level-warning { background-color: #FEF3C7; color: #B45309; }
-.log-level-error { background-color: #FEE2E2; color: #B91C1C; }
-.log-level-debug { background-color: #F3F4F6; color: #4B5563; }
+.log-level-info {
+  background-color: #E0F2FE;
+  color: #0369A1;
+}
 
+.log-level-warning {
+  background-color: #FEF3C7;
+  color: #B45309;
+}
+
+.log-level-error {
+  background-color: #FEE2E2;
+  color: #B91C1C;
+}
+
+.log-level-debug {
+  background-color: #F3F4F6;
+  color: #4B5563;
+}
+
+
+/* --- Compact Table Styles (User Request) --- */
+.data-table,
+.logs-table,
+table {
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 0.5rem 0.5rem !important;
+  /* Force reduced padding */
+}
+
+/* Compact specific for action buttons in tables */
+td .action-button,
+th .action-button {
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.8rem !important;
+  margin: 0 2px;
+}
