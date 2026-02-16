@@ -142,6 +142,82 @@ async def add_no_cache_header(request, call_next):
 async def health_check():
     return {"status": "ok"}
 
+print("DEBUG: Registering /api/inscripciones route")
+@app.get("/api/inscripciones", response_model=Dict[str, Any])
+async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
+    print(f"DEBUG: Executing get_inscripciones page={page} limit={limit}")
+    await log_activity('INFO', 'get_inscripciones_request', f'Solicitud de inscripciones - Página: {page}, Límite: {limit}')
+    try:
+        # Aquí deberías leer las inscripciones desde Google Sheets o tu DB.
+        # Por simplicidad, leeremos de sheets_services.py, ajusta esto si usas una DB principal.
+        # Asume que GOOGLE_SHEET_ID y un nombre de hoja específico para inscripciones están en .env
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        main_sheet_name_env = os.getenv("GOOGLE_SHEET_NAME") # Obtener el nombre de la hoja principal del .env
+        inscripciones_tab_name = "inscrip" # Nombre de la pestaña, confirmado por el usuario
+        
+        if not sheet_id or not main_sheet_name_env:
+            raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
+
+        df = sheets_services.read_sheet_data(sheet_id, inscripciones_tab_name)
+        
+        if df.empty:
+            return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        total_records = len(df)
+        offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+
+        # Aplicar paginación al DataFrame
+        paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+
+        # Buscar PDFs de inscripciones
+        inscripciones_folder_id = "1a1VEA7I5N5sMvqLQWuoDpQ3WSiayQbK9"
+        pdfs = drive_services.list_pdfs_in_folder(inscripciones_folder_id)
+        await log_activity('INFO', 'pdfs_found', f"PDFs de inscripciones encontrados: {len(pdfs)}")
+        pdf_dict = {pdf['name'].replace('.pdf', ''): pdf.get('webViewLink', '') for pdf in pdfs if 'name' in pdf}
+
+        # Enriquecer con estado de pago desde la base de datos
+        for inscripcion in paginated_data:
+            numero_inscripcion = inscripcion.get('numero_inscripcion')
+
+            # Asociar PDF
+            if numero_inscripcion and numero_inscripcion in pdf_dict:
+                inscripcion['pdf_link'] = pdf_dict[numero_inscripcion]
+
+            if numero_inscripcion:
+                # Buscar si hay un pago aprobado en la base de datos
+                pago_query = select(pagos).where(
+                    pagos.c.inscription_id == numero_inscripcion,
+                    pagos.c.status == 'approved'
+                )
+                pago_result = await database.fetch_one(pago_query)
+
+                if pago_result:
+                    inscripcion['Estado de Pago'] = 'Pagado'
+                    inscripcion['payment_id'] = pago_result['payment_id']
+                    inscripcion['fecha_pago'] = pago_result['date_created'].isoformat() if pago_result['date_created'] else None
+                else:
+                    # Verificar si existe algún pago (aunque no esté aprobado)
+                    any_pago_query = select(pagos).where(pagos.c.inscription_id == numero_inscripcion)
+                    any_pago = await database.fetch_one(any_pago_query)
+
+                    if any_pago:
+                        inscripcion['Estado de Pago'] = any_pago['status'].capitalize()
+                    else:
+                        inscripcion['Estado de Pago'] = 'Pendiente'
+
+        return {
+            "data": paginated_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_inscripciones_failed', f"Error al obtener inscripciones: {e}")
+        # print(f"DEBUG EXCEPTION: {e}") # Uncomment if needed
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener inscripciones: {e}")
+
 @app.get("/")
 async def read_root():
     await log_activity('INFO', 'root_access', 'Acceso al endpoint raíz.')
@@ -1282,7 +1358,7 @@ if os.path.exists(frontend_build_path):
             return FileResponse(file_path)
         
         # Fallback to index.html for React Router
-        print(f"DEBUG: Serving index.html for path: {full_path}") 
+        print(f"DEBUG: CATCH-ALL HIT. full_path='{full_path}' path='{path}'") 
         response = FileResponse(os.path.join(frontend_build_path, "index.html"))
         response.headers["X-Debug-Path"] = full_path
         response.headers["X-Debug-Check"] = f"startswith_api={path.startswith('api/')}"
