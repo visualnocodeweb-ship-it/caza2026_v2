@@ -1255,16 +1255,20 @@ if os.path.exists(frontend_build_path):
     # This must be the Last route defined
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
-        # Don't catch API routes (though they are defined above, just in case)
-        if full_path.startswith("api/"):
-             raise HTTPException(status_code=404, detail="Not Found")
+        # Normalize path to remove leading slash
+        path = full_path.lstrip('/')
+        
+        # Don't catch API routes or health check
+        if path.startswith("api/") or path == "health":
+             raise HTTPException(status_code=404, detail="API Endpoint Not Found")
 
         # Check if a specific file was requested (e.g. manifest.json, favicon.ico)
-        file_path = os.path.join(frontend_build_path, full_path)
+        file_path = os.path.join(frontend_build_path, path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return FileResponse(file_path)
         
         # Fallback to index.html for React Router
+        print(f"DEBUG: Serving index.html for path: {full_path}") # Log catch-all usage
         return FileResponse(os.path.join(frontend_build_path, "index.html"))
 else:
     print(f"WARNING: Frontend build directory not found at {frontend_build_path}. Static files will not be served.")
