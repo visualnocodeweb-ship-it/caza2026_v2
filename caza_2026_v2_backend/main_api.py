@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI, HTTPException, status, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import datetime
@@ -1237,4 +1238,34 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
     except Exception as e:
         await log_activity('ERROR', 'send_permiso_email_failed', f"Error al enviar permiso por email: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar permiso por email: {e}")
+
+# --- Serve React Frontend (Deployment Fix) ---
+# Adjust path to where the frontend build is located relative to this file
+# Assuming structure:
+# /root
+#   /caza_2026_v2_backend/main_api.py
+#   /caza_2026_v2_frontend/build
+frontend_build_path = os.path.join(os.path.dirname(__file__), "..", "caza_2026_v2_frontend", "build")
+
+if os.path.exists(frontend_build_path):
+    # Mount static assets (JS, CSS, images)
+    app.mount("/static", StaticFiles(directory=os.path.join(frontend_build_path, "static")), name="static")
+    
+    # Catch-all route to serve index.html for SPA routing
+    # This must be the Last route defined
+    @app.get("/{full_path:path}")
+    async def serve_react_app(full_path: str):
+        # Don't catch API routes (though they are defined above, just in case)
+        if full_path.startswith("api/"):
+             raise HTTPException(status_code=404, detail="Not Found")
+
+        # Check if a specific file was requested (e.g. manifest.json, favicon.ico)
+        file_path = os.path.join(frontend_build_path, full_path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        
+        # Fallback to index.html for React Router
+        return FileResponse(os.path.join(frontend_build_path, "index.html"))
+else:
+    print(f"WARNING: Frontend build directory not found at {frontend_build_path}. Static files will not be served.")
 
