@@ -366,7 +366,7 @@ export const fetchSentItems = async () => {
     return data;
   } catch (error) {
     console.error("Error fetching sent items:", error);
-    return [];
+    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
   }
 };
 

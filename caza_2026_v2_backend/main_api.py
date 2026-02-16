@@ -1279,10 +1279,6 @@ if os.path.exists(frontend_build_path):
         # Normalize path to remove leading slash
         path = full_path.lstrip('/')
         
-        # Don't catch API routes or health check
-        if path.startswith("api/") or path == "health":
-             raise HTTPException(status_code=404, detail=f"API Endpoint Not Found: {path}")
-
         # Check if a specific file was requested (e.g. manifest.json, favicon.ico)
         file_path = os.path.join(frontend_build_path, path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
@@ -1292,7 +1288,7 @@ if os.path.exists(frontend_build_path):
         print(f"DEBUG: CATCH-ALL HIT. full_path='{full_path}' path='{path}'") 
         response = FileResponse(os.path.join(frontend_build_path, "index.html"))
         response.headers["X-Debug-Path"] = full_path
-        response.headers["X-Debug-Check"] = f"startswith_api={path.startswith('api/')}"
+        response.headers["X-Debug-Check"] = f"serving index.html for SPA"
         return response
 else:
     print(f"WARNING: Frontend build directory not found at {frontend_build_path}. Static files will not be served.")
