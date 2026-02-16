@@ -1,35 +1,65 @@
 import React from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import Layout from './components/Layout'; // Import Layout component
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import Layout from './components/Layout';
+import { AuthProvider } from './context/AuthContext';
+import PrivateRoute from './components/PrivateRoute';
+import Login from './pages/Login';
 
-// Import your page components
 import Inscripciones from './pages/Inscripciones';
 import PermisoCaza from './pages/PermisoCaza';
 import Dashboard from './pages/Dashboard';
 import InscripcionesStats from './pages/dashboard/InscripcionesStats';
 import RecaudacionesStats from './pages/dashboard/RecaudacionesStats';
-import PermisosStats from './pages/dashboard/PermisosStats'; // New Import
+import PermisosStats from './pages/dashboard/PermisosStats';
 import NotFound from './pages/NotFound';
-import PagosRealizados from './pages/PagosRealizados'; // New Import
+import PagosRealizados from './pages/PagosRealizados';
 
 const App = () => {
   return (
     <Router>
-      <Layout>
+      <AuthProvider>
         <Routes>
-          <Route path="/" element={<Inscripciones />} />
-          <Route path="/inscripciones" element={<Inscripciones />} />
-          <Route path="/permiso-caza" element={<PermisoCaza />} />
-          <Route path="/dashboard" element={<Dashboard />}>
-            <Route index element={<InscripcionesStats />} />
-            <Route path="inscripciones" element={<InscripcionesStats />} />
-            <Route path="permisos" element={<PermisosStats />} />
-            <Route path="recaudaciones" element={<RecaudacionesStats />} />
+          {/* Public Route: Login */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Protected Routes nested under Layout */}
+          <Route element={<Layout />}>
+            <Route path="/" element={
+              <PrivateRoute>
+                <Inscripciones />
+              </PrivateRoute>
+            } />
+            <Route path="/inscripciones" element={
+              <PrivateRoute>
+                <Inscripciones />
+              </PrivateRoute>
+            } />
+            <Route path="/permiso-caza" element={
+              <PrivateRoute>
+                <PermisoCaza />
+              </PrivateRoute>
+            } />
+            <Route path="/pagos" element={
+              <PrivateRoute>
+                <PagosRealizados />
+              </PrivateRoute>
+            } />
+
+            <Route path="/dashboard" element={
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
+            }>
+              <Route index element={<InscripcionesStats />} />
+              <Route path="inscripciones" element={<InscripcionesStats />} />
+              <Route path="permisos" element={<PermisosStats />} />
+              <Route path="recaudaciones" element={<RecaudacionesStats />} />
+            </Route>
           </Route>
-          <Route path="/pagos" element={<PagosRealizados />} />
+
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </Layout>
+      </AuthProvider>
     </Router>
   );
 };
