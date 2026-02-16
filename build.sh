@@ -6,5 +6,6 @@ pip install -r requirements.txt
 
 cd caza_2026_v2_frontend
 npm install
-npm run build
+# Prevent warnings from breaking the build
+CI=false npm run build
 cd ..
