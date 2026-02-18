@@ -163,6 +163,10 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
 
         df = sheets_services.read_sheet_data(sheet_id, inscripciones_tab_name)
         
+        # Invertir el DataFrame para que los registros más nuevos (abajo en la hoja) aparezcan primero
+        if not df.empty:
+            df = df.iloc[::-1]
+        
         if df.empty:
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
 
@@ -264,27 +268,42 @@ async def link_data_endpoint():
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         inscripciones_tab_name = "inscrip"
         
+        print(f"DEBUG link-data: sheet_id={sheet_id}, tab={inscripciones_tab_name}", flush=True)
+        
         if not sheet_id:
-            raise HTTPException(status_code=500, detail="GOOGLE_SHEET_ID no configurado")
+            error_msg = "GOOGLE_SHEET_ID no configurado"
+            print(f"ERROR link-data: {error_msg}", flush=True)
+            raise HTTPException(status_code=500, detail=error_msg)
         
         # 1. Leer inscripciones desde Google Sheets
+        print("DEBUG link-data: Llamando a sheets_services.read_sheet...", flush=True)
         inscripciones_data = sheets_services.read_sheet(sheet_id, inscripciones_tab_name)
+        print(f"DEBUG link-data: Leídas {len(inscripciones_data) if inscripciones_data else 0} filas", flush=True)
+        
         if not inscripciones_data or len(inscripciones_data) < 2:
-            return {"message": "No hay inscripciones para vincular.", "updated_count": 0}
+            msg = "No hay inscripciones para vincular."
+            print(f"DEBUG link-data: {msg}", flush=True)
+            return {"message": msg, "updated_count": 0, "total_checked": 0}
         
         headers = inscripciones_data[0]
         rows = inscripciones_data[1:]
+        print(f"DEBUG link-data: Headers={headers[:5]}...", flush=True)
         
         # Encontrar índice de columnas importantes
         try:
             numero_inscripcion_idx = headers.index('numero_inscripcion')
             estado_pago_idx = headers.index('Estado de Pago') if 'Estado de Pago' in headers else None
+            print(f"DEBUG link-data: numero_inscripcion_idx={numero_inscripcion_idx}, estado_pago_idx={estado_pago_idx}", flush=True)
         except ValueError as e:
-            raise HTTPException(status_code=500, detail=f"Columna requerida no encontrada: {e}")
+            error_msg = f"Columna requerida no encontrada: {e}"
+            print(f"ERROR link-data: {error_msg}", flush=True)
+            raise HTTPException(status_code=500, detail=error_msg)
         
         # 2. Sincronizar con base de datos
         updated_count = 0
         updates_to_write = []
+        
+        print(f"DEBUG link-data: Procesando {len(rows)} filas...", flush=True)
         
         for row_idx, row in enumerate(rows, start=2):  # start=2 porque la fila 1 son headers
             if len(row) <= numero_inscripcion_idx:
@@ -312,39 +331,53 @@ async def link_data_endpoint():
                 nuevo_estado = any_pago['status'].capitalize() if any_pago else "Pendiente"
             
             # Verificar si necesita actualización
-            estado_actual = row[estado_pago_idx] if estado_pago_idx and len(row) > estado_pago_idx else ""
+            estado_actual = row[estado_pago_idx] if estado_pago_idx is not None and len(row) > estado_pago_idx else ""
             
             if estado_actual != nuevo_estado:
                 # Preparar actualización
                 if estado_pago_idx is not None:
-                    # Asegurar que la fila tenga suficientes columnas
-                    while len(row) <= estado_pago_idx:
-                        row.append("")
-                    
                     updates_to_write.append({
                         'row': row_idx,
                         'col': estado_pago_idx + 1,  # +1 porque Sheets usa índice 1-based
-                        'value': nuevo_estado
+                        'value': nuevo_estado,
+                        'inscripcion_id': numero_inscripcion
                     })
                     updated_count += 1
         
+        print(f"DEBUG link-data: {updated_count} actualizaciones preparadas", flush=True)
+        
         # 3. Escribir actualizaciones a Google Sheets
         if updates_to_write:
+            print(f"DEBUG link-data: Escribiendo {len(updates_to_write)} actualizaciones...", flush=True)
             for update in updates_to_write:
-                cell_range = f"{inscripciones_tab_name}!{chr(65 + update['col'] - 1)}{update['row']}"
-                sheets_services.update_cell(sheet_id, cell_range, [[update['value']]])
+                try:
+                    col_letter = chr(64 + update['col'])  # 64 + 1 = 65 = 'A'
+                    cell_range = f"{inscripciones_tab_name}!{col_letter}{update['row']}"
+                    print(f"DEBUG link-data: Actualizando {cell_range} = {update['value']}", flush=True)
+                    sheets_services.update_cell(sheet_id, cell_range, [[update['value']]])
+                except Exception as update_error:
+                    print(f"ERROR link-data: Fallo al actualizar {update.get('inscripcion_id')}: {update_error}", flush=True)
+                    # Continuar con las demás actualizaciones
         
         await log_activity('INFO', 'link_data_success', f'Vinculación completada. {updated_count} registros actualizados.')
         
-        return {
+        result = {
             "message": f"Datos vinculados exitosamente. {updated_count} registros actualizados.",
             "updated_count": updated_count,
             "total_checked": len(rows)
         }
+        print(f"DEBUG link-data: Resultado={result}", flush=True)
+        return result
         
+    except HTTPException:
+        raise
     except Exception as e:
-        await log_activity('ERROR', 'link_data_failed', f"Error al vincular datos: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al vincular datos: {e}")
+        error_msg = f"Error al vincular datos: {str(e)}"
+        print(f"ERROR link-data EXCEPTION: {error_msg}", flush=True)
+        import traceback
+        traceback.print_exc()
+        await log_activity('ERROR', 'link_data_failed', error_msg)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg)
 
 
 @app.post("/api/inscripciones", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
@@ -403,6 +436,10 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
             raise ValueError("GOOGLE_SHEET_ID o GOOGLE_SHEET_NAME no configurados.")
 
         df = sheets_services.read_sheet_data(sheet_id, permisos_tab_name)
+
+        # Invertir el DataFrame para que los registros más nuevos (abajo en la hoja) aparezcan primero
+        if not df.empty:
+            df = df.iloc[::-1]
         
         if df.empty:
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
