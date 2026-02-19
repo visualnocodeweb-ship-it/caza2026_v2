@@ -1256,16 +1256,47 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
         if not categoria:
             raise ValueError("Categoría del permiso no especificada.")
 
-        # Buscar en la pestaña precios la actividad que contenga la categoría
-        precio_row = precios_df[precios_df['Actividad'].str.contains(categoria, case=False, na=False)]
+        # Normalización para búsqueda robusta
+        def normalize(t):
+            return " ".join(str(t).lower().strip().split())
+
+        cat_norm = normalize(categoria)
+        
+        # Intentar coincidencia exacta primero (normalizada)
+        precios_df['Actividad_Norm'] = precios_df['Actividad'].apply(normalize)
+        precio_row = precios_df[precios_df['Actividad_Norm'] == cat_norm]
+
+        # Si no hay coincidencia exacta, intentar con contains (sin regex para evitar problemas con paréntesis)
+        if precio_row.empty:
+            precio_row = precios_df[precios_df['Actividad_Norm'].str.contains(cat_norm, regex=False, na=False)]
 
         if precio_row.empty:
+            # Si sigue fallando, loguear las opciones disponibles para depuración
+            available = precios_df['Actividad'].tolist()
+            await log_activity('WARNING', 'price_lookup_failed', f"No se encontró '{categoria}'. Opciones: {available}")
             raise ValueError(f"No se encontró precio para la categoría de permiso: {categoria}")
 
         # Obtener el valor y limpiarlo
-        precio_str = precio_row.iloc[0]['Valor']
-        precio_limpio = precio_str.replace('$', '').replace(',', '').replace('.', '').strip()
-        precio = float(precio_limpio) / 100  # Convertir centavos a pesos
+        precio_str = str(precio_row.iloc[0]['Valor'])
+        # Limpieza robusta: quitar $, espacios, y manejar separadores
+        # Si tiene coma y punto, eliminar el separador de miles
+        p_clean = precio_str.replace('$', '').strip()
+        if ',' in p_clean and '.' in p_clean:
+            # Determinar cuál es el de miles. Si el punto está antes de la coma: 1.234,56
+            if p_clean.find('.') < p_clean.find(','):
+                p_clean = p_clean.replace('.', '').replace(',', '.')
+            else: # 1,234.56
+                p_clean = p_clean.replace(',', '')
+        elif ',' in p_clean:
+            # Solo tiene coma. En AR es decimal.
+            p_clean = p_clean.replace(',', '.')
+        
+        try:
+            precio = float(p_clean)
+        except ValueError:
+            # Fallback al método anterior si falló el nuevo, por si acaso
+            precio_limpio_old = precio_str.replace('$', '').replace(',', '').replace('.', '').strip()
+            precio = float(precio_limpio_old) / 100
 
         # Crear preferencia de pago en MercadoPago
         payment_result = mercadopago_services.create_payment_preference(
