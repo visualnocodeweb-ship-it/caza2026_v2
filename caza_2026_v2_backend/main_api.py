@@ -1118,7 +1118,7 @@ async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro.")
 
-        await log_activity('INFO', 'payment_link_sent', f'Link de pago enviado a {request_data.email}. Monto: {precio_formateado}. Preference ID: {payment_result["preference_id"]}')
+        await log_activity('INFO', 'payment_link_sent', f'Envío de cobro (Inscripción) - ID: {request_data.inscription_id}, Monto: {precio_formateado}, Email: {request_data.email}. Preference ID: {payment_result["preference_id"]}')
         return {"message": "Email de cobro enviado exitosamente con link de MercadoPago."}
     except Exception as e:
         await log_activity('ERROR', 'send_payment_link_failed', f"Error al enviar link de pago: {e}")
@@ -1352,7 +1352,7 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro del permiso.")
 
-        await log_activity('INFO', 'permiso_payment_link_sent', f'Link de pago de permiso enviado a {request_data.email}. Monto: {precio_formateado}. Preference ID: {payment_result["preference_id"]}')
+        await log_activity('INFO', 'permiso_payment_link_sent', f'Envío de cobro (Permiso) - ID: {request_data.permiso_id}, Monto: {precio_formateado}, Email: {request_data.email}. Preference ID: {payment_result["preference_id"]}')
         return {"message": "Email de cobro de permiso enviado exitosamente con link de MercadoPago."}
     except Exception as e:
         await log_activity('ERROR', 'send_permiso_payment_link_failed', f"Error al enviar link de pago de permiso: {e}")
