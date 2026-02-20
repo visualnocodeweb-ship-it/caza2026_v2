@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReses, sendResesGuia, sendResesPayment } from '../utils/api';
+import { fetchReses, sendResesGuia, sendResesPayment, logResesAction } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -29,6 +29,15 @@ const Reses = () => {
             setTotalRecords(data.total_records);
             setTotalPages(data.total_pages);
 
+            // Inicializar montos desde la DB
+            const initialAmounts = {};
+            data.data.forEach(item => {
+                if (item.permanent_amount) {
+                    initialAmounts[item.ID] = item.permanent_amount;
+                }
+            });
+            setPaymentAmounts(prev => ({ ...prev, ...initialAmounts }));
+
             const initialExpandedStates = data.data.reduce((acc, _, index) => {
                 acc[index] = false;
                 return acc;
@@ -53,6 +62,18 @@ const Reses = () => {
         }));
     };
 
+    const handleEditDocx = async (res) => {
+        try {
+            await logResesAction({ res_id: res.ID, action: "Se abrió el archivo Docx para edición" });
+            // Abrir en nueva pestaña
+            window.open(res.docx_link, '_blank');
+            // Actualizar historial localmente para feedback inmediato
+            updateHistoryLocally(res.ID, "Se abrió el archivo Docx para edición");
+        } catch (err) {
+            console.error("Error logging edit action:", err);
+        }
+    };
+
     const handleSendGuia = async (res) => {
         if (!res.docx_id) {
             alert("No se encontró el archivo Docx asociado a este registro.");
@@ -75,6 +96,7 @@ const Reses = () => {
             });
             alert(`Guía enviada exitosamente a ${res.Email}`);
             updateSentStatusLocally(resId, 'guia');
+            updateHistoryLocally(resId, `Se envió Guía (PDF) a ${res.Email}`);
         } catch (err) {
             console.error("Error al enviar guía:", err);
             alert(`Error al enviar guía: ${err.message}`);
@@ -107,6 +129,7 @@ const Reses = () => {
             });
             alert(`Solicitud de cobro por $${amount} enviada a ${res.Email}`);
             updateSentStatusLocally(resId, 'cobro');
+            updateHistoryLocally(resId, `Se envió cobro por $${amount} a ${res.Email}`);
         } catch (err) {
             console.error("Error al enviar cobro:", err);
             alert(`Error al enviar cobro: ${err.message}`);
@@ -119,6 +142,15 @@ const Reses = () => {
         setReses(prevReses => prevReses.map(r =>
             r.ID === resId
                 ? { ...r, sent_statuses: [...new Set([...(r.sent_statuses || []), type])] }
+                : r
+        ));
+    };
+
+    const updateHistoryLocally = (resId, action) => {
+        const newLog = { timestamp: new Date().toISOString(), details: action };
+        setReses(prevReses => prevReses.map(r =>
+            r.ID === resId
+                ? { ...r, history: [newLog, ...(r.history || [])] }
                 : r
         ));
     };
@@ -200,7 +232,7 @@ const Reses = () => {
                                         <p><strong>Email:</strong> {item['Email'] || 'N/A'}</p>
                                     </div>
 
-                                    <div className="action-buttons" style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+                                    <div className="action-buttons-container" style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
                                         <div className="reses-payment-section" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
                                             <label htmlFor={`amount-${item.ID}`} style={{ fontSize: '14px', fontWeight: '600' }}>Monto Cobro:</label>
                                             <input
@@ -224,9 +256,12 @@ const Reses = () => {
 
                                         <div className="guia-actions" style={{ display: 'flex', gap: '10px' }}>
                                             {item.docx_link ? (
-                                                <a href={item.docx_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary">
+                                                <button
+                                                    className="action-button btn-secondary"
+                                                    onClick={(e) => { e.stopPropagation(); handleEditDocx(item); }}
+                                                >
                                                     Editar Guía (Docx)
-                                                </a>
+                                                </button>
                                             ) : (
                                                 <button className="action-button btn-disabled" disabled title="No se encontró el archivo en la carpeta Docx">Docx no encontrado</button>
                                             )}
@@ -240,6 +275,22 @@ const Reses = () => {
                                             </button>
                                         </div>
                                     </div>
+
+                                    {item.history && item.history.length > 0 && (
+                                        <div className="history-section" style={{ marginTop: '20px', backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px' }}>
+                                            <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#333' }}>Historial de Movimientos</h4>
+                                            <div className="history-list" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                                                {item.history.map((log, lIdx) => (
+                                                    <div key={lIdx} className="history-item" style={{ fontSize: '12px', padding: '5px 0', borderBottom: '1px solid #eee', color: '#555' }}>
+                                                        <span style={{ fontWeight: '600', color: '#888', marginRight: '8px' }}>
+                                                            {new Date(log.timestamp).toLocaleString()}:
+                                                        </span>
+                                                        {log.details}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

@@ -8,7 +8,7 @@ import datetime
 import pandas as pd # Import pandas for data manipulation
 from sqlalchemy import select, func, desc
 from .database import database, engine, metadata
-from .models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items
+from .models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items, reses_details
 from . import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
 import math # Needed for ceil
 from pydantic import BaseModel
@@ -550,6 +550,7 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         # Diccionario para matching rápido (ignorando extensión)
         docx_dict = {f['name'].split('.')[0]: f for f in all_files}
 
+        # Nombres de acciones para el historial
         for res in paginated_data:
             res_id = res.get('ID')
             
@@ -560,14 +561,33 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
 
             # Enriquecer con estados de envío
             if res_id:
+                # 1. Estados de envío
                 sent_query = select(sent_items.c.sent_type).where(
                     sent_items.c.item_id == res_id,
                     sent_items.c.item_type == 'reses'
                 )
                 sent_results = await database.fetch_all(sent_query)
                 res['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
+
+                # 2. Monto permanente
+                detail_query = select(reses_details.c.amount).where(reses_details.c.res_id == res_id)
+                db_amount = await database.fetch_val(detail_query)
+                res['permanent_amount'] = db_amount
+
+                # 3. Historial de movimientos (logs)
+                # Buscamos logs donde details empiece con el [ID]
+                history_query = select(logs.c.timestamp, logs.c.details).where(
+                    logs.c.details.like(f"[{res_id}]%")
+                ).order_by(desc(logs.c.timestamp))
+                history_results = await database.fetch_all(history_query)
+                res['history'] = [
+                    {"timestamp": r["timestamp"], "details": r["details"].replace(f"[{res_id}] - ", "")} 
+                    for r in history_results
+                ]
             else:
                 res['sent_statuses'] = []
+                res['permanent_amount'] = None
+                res['history'] = []
 
         return {
             "data": paginated_data,
@@ -633,6 +653,9 @@ async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
         )
         await database.execute(query)
 
+        # Historial permanente
+        await log_activity('INFO', f'Reses History: {request_data.res_id}', f'[{request_data.res_id}] - Se envió Guía (PDF) a {request_data.email}')
+
         await log_activity('INFO', 'send_reses_guia_success', f'Guía enviada exitosamente a {request_data.email}')
         return {"status": "success", "message": "Guía enviada exitosamente"}
 
@@ -687,14 +710,29 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
         if not success:
             raise HTTPException(status_code=500, detail="Error al enviar el email con Resend.")
 
-        # Registrar Acción
-        query = sent_items.insert().values(
+        # 1. Registrar en sent_items (para etiquetas)
+        query_sent = sent_items.insert().values(
             item_id=request_data.res_id,
             item_type='reses',
             sent_type='cobro',
             date_sent=datetime.datetime.now(datetime.timezone.utc)
         )
-        await database.execute(query)
+        await database.execute(query_sent)
+
+        # 2. Guardar monto de forma permanente (upsert)
+        check_query = select(reses_details).where(reses_details.c.res_id == request_data.res_id)
+        existing = await database.fetch_one(check_query)
+        
+        amount_val = float(request_data.amount)
+        if existing:
+            update_query = reses_details.update().where(reses_details.c.res_id == request_data.res_id).values(amount=amount_val)
+            await database.execute(update_query)
+        else:
+            insert_query = reses_details.insert().values(res_id=request_data.res_id, amount=amount_val)
+            await database.execute(insert_query)
+
+        # 3. Historial permanente
+        await log_activity('INFO', f'Reses History: {request_data.res_id}', f'[{request_data.res_id}] - Se envió cobro por ${request_data.amount} a {request_data.email}')
 
         await log_activity('INFO', 'send_reses_payment_success', f'Cobro enviado exitosamente a {request_data.email} por ${request_data.amount}')
         return {"status": "success", "message": "Cobro enviado exitosamente"}
@@ -702,6 +740,18 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
     except Exception as e:
         await log_activity('ERROR', 'send_reses_payment_failed', f"Error al enviar cobro: {e}")
         raise HTTPException(status_code=500, detail=f"Error al enviar cobro: {e}")
+
+class SendResesActionRequest(BaseModel):
+    res_id: str
+    action: str
+
+@app.post("/api/reses/log-action", response_model=Dict[str, str])
+async def log_reses_action_endpoint(request_data: SendResesActionRequest):
+    try:
+        await log_activity('INFO', f'Reses History: {request_data.res_id}', f'[{request_data.res_id}] - {request_data.action}')
+        return {"status": "success", "message": "Acción registrada en el historial"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/permisos", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def create_permiso(permiso: PermisoCreate):

@@ -94,6 +94,27 @@ export const sendResesPayment = async (paymentData) => {
   }
 };
 
+export const logResesAction = async (actionData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reses/log-action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(actionData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error logging reses action:", error);
+    throw error;
+  }
+};
+
 export const fetchErrorLog = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/error-log`);
