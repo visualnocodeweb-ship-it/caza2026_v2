@@ -22,31 +22,13 @@ const PermisoCaza = () => {
     setLoading(true);
     setError(null);
     try {
-      const [permisosResponse, sentItemsRaw] = await Promise.all([
-        fetchPermisos(page, RECORDS_PER_PAGE),
-        fetchSentItems()
-      ]);
+      const data = await fetchPermisos(page, RECORDS_PER_PAGE);
 
-      const sentStatusMap = permisosResponse.data.reduce((acc, perm) => {
-        acc[perm.ID] = [];
-        return acc;
-      }, {});
-      sentItemsRaw.data.forEach(item => { // CAMBIO AQUÍ: sentItemsRaw.data.forEach
-        if (item.item_type === 'permiso' && sentStatusMap[item.item_id]) {
-          sentStatusMap[item.item_id].push(item.sent_type);
-        }
-      });
+      setPermisos(data.data);
+      setTotalRecords(data.total_records);
+      setTotalPages(data.total_pages);
 
-      const updatedPermisos = permisosResponse.data.map(perm => ({
-        ...perm,
-        sent_statuses: sentStatusMap[perm.ID] || []
-      }));
-
-      setPermisos(updatedPermisos);
-      setTotalRecords(permisosResponse.total_records);
-      setTotalPages(permisosResponse.total_pages);
-
-      const initialExpandedStates = permisosResponse.data.reduce((acc, _, index) => {
+      const initialExpandedStates = data.data.reduce((acc, _, index) => {
         acc[index] = false;
         return acc;
       }, {});
@@ -85,8 +67,8 @@ const PermisoCaza = () => {
   };
 
   const updateSentStatusLocally = (permisoId, sentType) => {
-    setPermisos(prevPermisos => 
-      prevPermisos.map(perm => 
+    setPermisos(prevPermisos =>
+      prevPermisos.map(perm =>
         perm.ID === permisoId
           ? { ...perm, sent_statuses: [...perm.sent_statuses, sentType] }
           : perm
@@ -120,24 +102,24 @@ const PermisoCaza = () => {
 
   const handleSendPermiso = async (permiso, index) => {
     if (!permiso['Dirección de correo electrónico'] || !permiso.ID) {
-        alert('Faltan datos esenciales (email o ID) para enviar el permiso.');
-        return;
+      alert('Faltan datos esenciales (email o ID) para enviar el permiso.');
+      return;
     }
 
     setSendingPermiso(prev => ({ ...prev, [index]: true }));
     try {
-        await sendPermisoEmailAPI({
-            permiso_id: permiso.ID,
-            email: permiso['Dirección de correo electrónico'],
-            nombre_apellido: permiso['Nombre y Apellido'],
-        });
-        await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'permiso' });
-        alert(`Permiso enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
-        updateSentStatusLocally(permiso.ID, 'permiso');
+      await sendPermisoEmailAPI({
+        permiso_id: permiso.ID,
+        email: permiso['Dirección de correo electrónico'],
+        nombre_apellido: permiso['Nombre y Apellido'],
+      });
+      await logSentItem({ item_id: permiso.ID, item_type: 'permiso', sent_type: 'permiso' });
+      alert(`Permiso enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
+      updateSentStatusLocally(permiso.ID, 'permiso');
     } catch (err) {
-        alert(`Error al enviar el permiso: ${err.message}`);
+      alert(`Error al enviar el permiso: ${err.message}`);
     } finally {
-        setSendingPermiso(prev => ({ ...prev, [index]: false }));
+      setSendingPermiso(prev => ({ ...prev, [index]: false }));
     }
   };
 
@@ -183,7 +165,7 @@ const PermisoCaza = () => {
           className="search-input"
         />
       </div>
-      
+
       {loading && permisos.length > 0 && <p>Actualizando permisos...</p>}
 
       {filteredPermisos.length > 0 ? (
@@ -194,7 +176,7 @@ const PermisoCaza = () => {
                 <h3>{permiso['Nombre y Apellido'] || 'Nombre no disponible'}</h3>
                 <span className="expand-toggle">▼</span>
               </div>
-              
+
               {expandedStates[index] && (
                 <div className="card-details">
                   <p><strong>Email:</strong> {permiso['Dirección de correo electrónico'] || 'N/A'}</p>
@@ -203,7 +185,7 @@ const PermisoCaza = () => {
                   <p><strong>Fecha:</strong> {formatDate(permiso.Fecha)}</p>
                   <p><strong>Estado de Cobro:</strong> {permiso['Estado de Cobro Enviado'] || 'No Enviado'}</p>
                   <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(permiso['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{permiso['Estado de Pago'] || 'Pendiente'}</span></p>
-                  
+
                   <div className="action-buttons">
                     {permiso.pdf_link && (
                       <a href={permiso.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary" onClick={() => handleSendPdf(permiso)}>
@@ -213,10 +195,10 @@ const PermisoCaza = () => {
                     {permiso['Dirección de correo electrónico'] && (
                       <>
                         <button
-                            onClick={() => handleSendEmail(permiso)}
-                            className="action-button btn-secondary"
+                          onClick={() => handleSendEmail(permiso)}
+                          className="action-button btn-secondary"
                         >
-                            Enviar Email
+                          Enviar Email
                         </button>
                         <button
                           onClick={() => handleSendPermisoPayment(permiso, index)}
@@ -226,20 +208,20 @@ const PermisoCaza = () => {
                           {sendingPayment[index] ? 'Enviando...' : (permiso['Estado de Cobro Enviado'] === 'Enviado' ? 'Cobro Enviado' : (permiso['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro'))}
                         </button>
                         <button
-                            onClick={() => handleSendPermiso(permiso, index)}
-                            disabled={sendingPermiso[index]}
-                            className="action-button btn-success"
+                          onClick={() => handleSendPermiso(permiso, index)}
+                          disabled={sendingPermiso[index]}
+                          className="action-button btn-success"
                         >
-                            {sendingPermiso[index] ? 'Enviando...' : 'Enviar Permiso'}
+                          {sendingPermiso[index] ? 'Enviando...' : 'Enviar Permiso'}
                         </button>
                       </>
                     )}
                   </div>
                   <div className="sent-status-container">
                     {permiso.sent_statuses && permiso.sent_statuses.length > 0 && (
-                        <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                            Enviado: {permiso.sent_statuses.join(', ')}
-                        </p>
+                      <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
+                        Enviado: {permiso.sent_statuses.join(', ')}
+                      </p>
                     )}
                   </div>
                 </div>

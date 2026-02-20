@@ -26,31 +26,13 @@ const Inscripciones = () => {
     setLoading(true);
     setError(null);
     try {
-      const [inscripcionesResponse, sentItemsRaw] = await Promise.all([
-        fetchInscripciones(page, RECORDS_PER_PAGE),
-        fetchSentItems()
-      ]);
-      
-      const sentStatusMap = inscripcionesResponse.data.reduce((acc, insc) => {
-        acc[insc.numero_inscripcion] = [];
-        return acc;
-      }, {});
-      sentItemsRaw.data.forEach(item => { // CAMBIO AQUÍ: sentItemsRaw.data.forEach
-        if (item.item_type === 'inscripcion' && sentStatusMap[item.item_id]) {
-          sentStatusMap[item.item_id].push(item.sent_type);
-        }
-      });
+      const data = await fetchInscripciones(page, RECORDS_PER_PAGE);
 
-      const updatedInscripciones = inscripcionesResponse.data.map(insc => ({
-        ...insc,
-        sent_statuses: sentStatusMap[insc.numero_inscripcion] || []
-      }));
+      setInscripciones(data.data);
+      setTotalRecords(data.total_records);
+      setTotalPages(data.total_pages);
 
-      setInscripciones(updatedInscripciones);
-      setTotalRecords(inscripcionesResponse.total_records);
-      setTotalPages(inscripcionesResponse.total_pages);
-      
-      const initialExpandedStates = inscripcionesResponse.data.reduce((acc, _, index) => {
+      const initialExpandedStates = data.data.reduce((acc, _, index) => {
         acc[index] = false;
         return acc;
       }, {});
@@ -103,9 +85,9 @@ const Inscripciones = () => {
   };
 
   const updateSentStatusLocally = (inscripcionId, sentType) => {
-    setInscripciones(prevInscripciones => 
-      prevInscripciones.map(insc => 
-        insc.numero_inscripcion === inscripcionId 
+    setInscripciones(prevInscripciones =>
+      prevInscripciones.map(insc =>
+        insc.numero_inscripcion === inscripcionId
           ? { ...insc, sent_statuses: [...insc.sent_statuses, sentType] }
           : insc
       )
@@ -228,7 +210,7 @@ const Inscripciones = () => {
         />
       </div>
       {linkingError && <p style={{ color: 'red', textAlign: 'center' }}>{linkingError}</p>}
-      
+
       {loading && inscripciones.length > 0 && <p>Actualizando inscripciones...</p>}
 
       {filteredInscripciones.length > 0 ? (
@@ -239,7 +221,7 @@ const Inscripciones = () => {
                 <h3>{inscripcion.nombre_establecimiento || 'Nombre no disponible'}</h3>
                 <span className="expand-toggle">▼</span>
               </div>
-              
+
               {expandedStates[index] && (
                 <div className="card-details">
                   <p><strong>Email:</strong> {inscripcion.email || 'N/A'}</p>
@@ -247,7 +229,7 @@ const Inscripciones = () => {
                   <p><strong>Celular:</strong> {inscripcion.celular ? <a href={`https://wa.me/${inscripcion.celular.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-button"><i className="fab fa-whatsapp"></i> {inscripcion.celular}</a> : 'N/A'}</p>
                   <p><strong>Fecha:</strong> {formatDate(inscripcion.fecha_creacion)}</p>
                   <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(inscripcion['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
-                  
+
                   <div className="action-buttons">
                     {inscripcion.pdf_link && (
                       <a href={inscripcion.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary" onClick={() => handleSendPdf(inscripcion)}>
@@ -264,10 +246,10 @@ const Inscripciones = () => {
                     {inscripcion.email && (
                       <>
                         <button
-                            onClick={() => handleSendEmail(inscripcion)}
-                            className="action-button btn-secondary"
+                          onClick={() => handleSendEmail(inscripcion)}
+                          className="action-button btn-secondary"
                         >
-                            Enviar Email
+                          Enviar Email
                         </button>
                         <button
                           onClick={() => handleSendPayment(inscripcion, index)}
@@ -288,9 +270,9 @@ const Inscripciones = () => {
                   </div>
                   <div className="sent-status-container">
                     {inscripcion.sent_statuses && inscripcion.sent_statuses.length > 0 && (
-                        <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                            Enviado: {inscripcion.sent_statuses.join(', ')}
-                        </p>
+                      <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
+                        Enviado: {inscripcion.sent_statuses.join(', ')}
+                      </p>
                     )}
                   </div>
                 </div>

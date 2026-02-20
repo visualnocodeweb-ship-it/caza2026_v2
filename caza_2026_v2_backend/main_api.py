@@ -213,6 +213,18 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
                     else:
                         inscripcion['Estado de Pago'] = 'Pendiente'
 
+            # Enriquecer con estados de envío desde sent_items
+            if numero_inscripcion:
+                sent_query = select(sent_items.c.sent_type).where(
+                    sent_items.c.item_id == numero_inscripcion,
+                    sent_items.c.item_type == 'inscripcion'
+                )
+                sent_results = await database.fetch_all(sent_query)
+                inscripcion['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
+            else:
+                inscripcion['sent_statuses'] = []
+
+
         return {
             "data": paginated_data,
             "total_records": total_records,
@@ -485,6 +497,17 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
                         permiso['Estado de Pago'] = any_pago['status'].capitalize()
                     else:
                         permiso['Estado de Pago'] = 'Pendiente'
+
+            # Enriquecer con estados de envío desde sent_items
+            if permiso_id:
+                sent_query = select(sent_items.c.sent_type).where(
+                    sent_items.c.item_id == permiso_id,
+                    sent_items.c.item_type == 'permiso'
+                )
+                sent_results = await database.fetch_all(sent_query)
+                permiso['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
+            else:
+                permiso['sent_statuses'] = []
 
         return {
             "data": paginated_data,
