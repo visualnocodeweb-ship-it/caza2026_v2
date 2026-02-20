@@ -73,5 +73,6 @@ reses_details = sqlalchemy.Table(
     sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
     sqlalchemy.Column("res_id", sqlalchemy.String, index=True, unique=True),
     sqlalchemy.Column("amount", sqlalchemy.Float),
+    sqlalchemy.Column("is_paid", sqlalchemy.Boolean, default=False),
     sqlalchemy.Column("last_updated", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)),
 )

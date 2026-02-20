@@ -26,6 +26,12 @@ const Dashboard = () => {
         >
           Recaudaciones
         </NavLink>
+        <NavLink
+          to="/dashboard/reses"
+          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
+        >
+          Reses
+        </NavLink>
         {/* Futuras pestañas del dashboard irán aquí */}
         {/* 
         <NavLink 

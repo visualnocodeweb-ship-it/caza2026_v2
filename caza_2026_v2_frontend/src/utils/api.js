@@ -115,6 +115,20 @@ export const logResesAction = async (actionData) => {
   }
 };
 
+export const fetchResesStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reses/stats`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching reses stats:", error);
+    throw error;
+  }
+};
+
 export const fetchErrorLog = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/error-log`);

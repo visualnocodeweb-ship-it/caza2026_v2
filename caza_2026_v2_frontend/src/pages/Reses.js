@@ -64,7 +64,12 @@ const Reses = () => {
 
     const handleEditDocx = async (res) => {
         try {
-            await logResesAction({ res_id: res.ID, action: "Se abrió el archivo Docx para edición" });
+            const amount = paymentAmounts[res.ID];
+            await logResesAction({
+                res_id: res.ID,
+                action: "Se abrió el archivo Docx para edición",
+                amount: amount
+            });
             // Abrir en nueva pestaña
             window.open(res.docx_link, '_blank');
             // Actualizar historial localmente para feedback inmediato
@@ -86,9 +91,19 @@ const Reses = () => {
         }
 
         const resId = res.ID;
+        const amount = paymentAmounts[resId];
         setSendingGuia(prev => ({ ...prev, [resId]: true }));
 
         try {
+            // Guardar monto antes de enviar guía para cumplir con la petición del usuario
+            if (amount) {
+                await logResesAction({
+                    res_id: resId,
+                    action: `Iniciando envío de Guía (PDF) con monto de cobro anotado: $${amount}`,
+                    amount: amount
+                });
+            }
+
             await sendResesGuia({
                 res_id: resId,
                 email: res.Email,
@@ -135,6 +150,26 @@ const Reses = () => {
             alert(`Error al enviar cobro: ${err.message}`);
         } finally {
             setSendingPayment(prev => ({ ...prev, [resId]: false }));
+        }
+    };
+
+    const handleTogglePaid = async (res, paidStatus) => {
+        try {
+            const resId = res.ID;
+            await logResesAction({
+                res_id: resId,
+                action: `Estado de pago cambiado a: ${paidStatus ? 'SÍ' : 'NO'}`,
+                is_paid: paidStatus
+            });
+
+            // Actualizar localmente
+            setReses(prevReses => prevReses.map(r =>
+                r.ID === resId ? { ...r, is_paid: paidStatus } : r
+            ));
+            updateHistoryLocally(resId, `Estado de pago cambiado a: ${paidStatus ? 'SÍ' : 'NO'}`);
+        } catch (err) {
+            console.error("Error updating paid status:", err);
+            alert("Error al actualizar el estado de pago.");
         }
     };
 
@@ -233,6 +268,29 @@ const Reses = () => {
                                     </div>
 
                                     <div className="action-buttons-container" style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+                                        {/* Sección de Pagado */}
+                                        <div className="reses-paid-toggle" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px', padding: '10px', backgroundColor: '#f0f7ff', borderRadius: '6px' }}>
+                                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#0056b3' }}>¿Pagado?</span>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '14px' }}>
+                                                    <input
+                                                        type="radio"
+                                                        name={`paid-${item.ID}`}
+                                                        checked={item.is_paid === true}
+                                                        onChange={() => handleTogglePaid(item, true)}
+                                                    /> Sí
+                                                </label>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '14px' }}>
+                                                    <input
+                                                        type="radio"
+                                                        name={`paid-${item.ID}`}
+                                                        checked={item.is_paid === false}
+                                                        onChange={() => handleTogglePaid(item, false)}
+                                                    /> No
+                                                </label>
+                                            </div>
+                                        </div>
+
                                         <div className="reses-payment-section" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
                                             <label htmlFor={`amount-${item.ID}`} style={{ fontSize: '14px', fontWeight: '600' }}>Monto Cobro:</label>
                                             <input

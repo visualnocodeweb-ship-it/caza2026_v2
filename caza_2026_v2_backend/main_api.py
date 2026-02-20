@@ -105,6 +105,14 @@ app = FastAPI()
 async def startup():
     await database.connect()
     metadata.create_all(bind=engine) # Ensure tables are created
+    
+    # Migración manual: asegurar que existe la columna 'is_paid' en 'reses_details'
+    try:
+        # Intentamos agregar la columna. Si ya existe, fallará de forma segura.
+        await database.execute("ALTER TABLE reses_details ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE")
+    except Exception as e:
+        print(f"Nota: No se pudo agregar la columna is_paid (posiblemente ya existe). {e}")
+
     await log_activity('INFO', 'startup', 'Aplicación iniciada.')
 
 @app.on_event("shutdown")
@@ -569,10 +577,11 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
                 sent_results = await database.fetch_all(sent_query)
                 res['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
 
-                # 2. Monto permanente
-                detail_query = select(reses_details.c.amount).where(reses_details.c.res_id == res_id)
-                db_amount = await database.fetch_val(detail_query)
-                res['permanent_amount'] = db_amount
+                # 2. Monto permanente y estado de pago
+                detail_query = select(reses_details.c.amount, reses_details.c.is_paid).where(reses_details.c.res_id == res_id)
+                db_record = await database.fetch_one(detail_query)
+                res['permanent_amount'] = db_record['amount'] if db_record else None
+                res['is_paid'] = db_record['is_paid'] if db_record else False
 
                 # 3. Historial de movimientos (logs)
                 # Buscamos logs donde details empiece con el [ID]
@@ -744,13 +753,75 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
 class SendResesActionRequest(BaseModel):
     res_id: str
     action: str
+    amount: Optional[str] = None
+    is_paid: Optional[bool] = None
 
 @app.post("/api/reses/log-action", response_model=Dict[str, str])
 async def log_reses_action_endpoint(request_data: SendResesActionRequest):
     try:
+        # 1. Registrar Historial
         await log_activity('INFO', f'Reses History: {request_data.res_id}', f'[{request_data.res_id}] - {request_data.action}')
-        return {"status": "success", "message": "Acción registrada en el historial"}
+        
+        # 2. Guardar monto e is_paid si se proporcionaron
+        if request_data.amount is not None or request_data.is_paid is not None:
+            check_query = select(reses_details).where(reses_details.c.res_id == request_data.res_id)
+            existing = await database.fetch_one(check_query)
+            
+            updates = {}
+            if request_data.amount is not None:
+                try:
+                    updates["amount"] = float(request_data.amount)
+                except ValueError:
+                    pass
+            if request_data.is_paid is not None:
+                updates["is_paid"] = request_data.is_paid
+
+            if existing:
+                if updates:
+                    update_query = reses_details.update().where(reses_details.c.res_id == request_data.res_id).values(**updates)
+                    await database.execute(update_query)
+            else:
+                if updates:
+                    insert_query = reses_details.insert().values(res_id=request_data.res_id, **updates)
+                    await database.execute(insert_query)
+                
+        return {"status": "success", "message": "Acción registrada y datos actualizados"}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/reses/stats", response_model=Dict[str, Any])
+async def get_reses_stats():
+    try:
+        # 1. Contar total de reses desde Google Sheets
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        df = sheets_services.read_sheet_data(sheet_id, "reses")
+        if df.empty:
+             return {"total_reses": 0, "total_records": 0, "total_revenue": 0}
+             
+        sheets_data = df.to_dict('records')
+        total_reses = 0
+        for row in sheets_data:
+            try:
+                # Sumamos la columna 'Cantidad de reses'
+                cant = row.get('Cantidad de reses', '0')
+                # A veces viene como string con espacios o puntos
+                if isinstance(cant, str):
+                    cant = cant.replace('.', '').strip()
+                total_reses += int(cant) if cant and str(cant).isdigit() else 0
+            except:
+                continue
+
+        # 2. Recaudación: Sumar montos de reses_details donde is_paid es True
+        revenue_query = select(func.sum(reses_details.c.amount)).where(reses_details.c.is_paid == True)
+        total_revenue = await database.fetch_val(revenue_query)
+        
+        return {
+            "total_reses": total_reses,
+            "total_records": len(sheets_data),
+            "total_revenue": total_revenue or 0
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_reses_stats_failed', str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/permisos", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)

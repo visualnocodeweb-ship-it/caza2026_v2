@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import InscripcionesStats from './pages/dashboard/InscripcionesStats';
 import RecaudacionesStats from './pages/dashboard/RecaudacionesStats';
 import PermisosStats from './pages/dashboard/PermisosStats';
+import ResesStats from './pages/dashboard/ResesStats';
 import NotFound from './pages/NotFound';
 import PagosRealizados from './pages/PagosRealizados';
 import Reses from './pages/Reses';
@@ -60,6 +61,7 @@ const App = () => {
               <Route path="inscripciones" element={<InscripcionesStats />} />
               <Route path="permisos" element={<PermisosStats />} />
               <Route path="recaudaciones" element={<RecaudacionesStats />} />
+              <Route path="reses" element={<ResesStats />} />
             </Route>
           </Route>
 
