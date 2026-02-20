@@ -751,7 +751,7 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
         raise HTTPException(status_code=500, detail=f"Error al enviar cobro: {e}")
 
 class SendResesActionRequest(BaseModel):
-    res_id: str
+    res_id: Optional[str] = None
     action: str
     amount: Optional[str] = None
     is_paid: Optional[bool] = None
@@ -759,11 +759,13 @@ class SendResesActionRequest(BaseModel):
 @app.post("/api/reses/log-action", response_model=Dict[str, str])
 async def log_reses_action_endpoint(request_data: SendResesActionRequest):
     try:
-        # 1. Registrar Historial
-        await log_activity('INFO', f'Reses History: {request_data.res_id}', f'[{request_data.res_id}] - {request_data.action}')
+        # 1. Registrar Historial (solo si hay res_id, si no, log general)
+        log_event = f"Reses History: {request_data.res_id}" if request_data.res_id else "Reses Action (No ID)"
+        log_details = f"[{request_data.res_id}] - {request_data.action}" if request_data.res_id else request_data.action
+        await log_activity('INFO', log_event, log_details)
         
-        # 2. Guardar monto e is_paid si se proporcionaron
-        if request_data.amount is not None or request_data.is_paid is not None:
+        # 2. Guardar monto e is_paid solo si se proporcionó un res_id válido
+        if request_data.res_id and (request_data.amount is not None or request_data.is_paid is not None):
             check_query = select(reses_details).where(reses_details.c.res_id == request_data.res_id)
             existing = await database.fetch_one(check_query)
             
