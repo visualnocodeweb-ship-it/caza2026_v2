@@ -544,6 +544,31 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
 
         paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
 
+        # Buscar Docx de reses
+        reses_folder_id = "1P2GThJQynZB9iPSn08l7KLHWshXgwO8C"
+        all_files = drive_services.list_files_in_folder(reses_folder_id)
+        # Diccionario para matching rápido (ignorando extensión)
+        docx_dict = {f['name'].split('.')[0]: f for f in all_files}
+
+        for res in paginated_data:
+            res_id = res.get('ID')
+            
+            # Asociar Docx
+            if res_id and res_id in docx_dict:
+                res['docx_link'] = docx_dict[res_id]['webViewLink']
+                res['docx_id'] = docx_dict[res_id]['id']
+
+            # Enriquecer con estados de envío
+            if res_id:
+                sent_query = select(sent_items.c.sent_type).where(
+                    sent_items.c.item_id == res_id,
+                    sent_items.c.item_type == 'reses'
+                )
+                sent_results = await database.fetch_all(sent_query)
+                res['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
+            else:
+                res['sent_statuses'] = []
+
         return {
             "data": paginated_data,
             "total_records": total_records,
@@ -554,6 +579,68 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
     except Exception as e:
         await log_activity('ERROR', 'get_reses_failed', f"Error al obtener reses: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener reses: {e}")
+
+class SendResesGuiaRequest(BaseModel):
+    res_id: str
+    email: str
+    docx_id: str
+
+@app.post("/api/send-reses-guia", response_model=Dict[str, str])
+async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
+    await log_activity('INFO', 'send_reses_guia_request', f'Solicitud para enviar guía a: {request_data.email} para res: {request_data.res_id}')
+    try:
+        # 1. Exportar Docx a PDF
+        pdf_content = drive_services.export_file_as_pdf(request_data.docx_id)
+        if not pdf_content:
+            raise HTTPException(status_code=500, detail="Error al generar el PDF de la guía desde Drive.")
+
+        # 2. Configurar Email
+        sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+        subject = f"Guía de Reses - {request_data.res_id}"
+        html_content = f"""
+        <html>
+        <body>
+            <h2>Guía de Reses</h2>
+            <p>Hola,</p>
+            <p>Se adjunta la guía de reses correspondiente al registro <strong>{request_data.res_id}</strong>.</p>
+            <br>
+            <p>Saludos,</p>
+            <p>Sistema de Control Caza 2026</p>
+        </body>
+        </html>
+        """
+        filename = f"Guia_{request_data.res_id}.pdf"
+
+        # 3. Enviar Email
+        success = email_services.send_email_with_attachment(
+            to_email=request_data.email,
+            subject=subject,
+            html_content=html_content,
+            sender_email=sender_email,
+            attachment_content=pdf_content,
+            attachment_filename=filename
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Error al enviar el email con Resend.")
+
+        # 4. Registrar Acción
+        query = sent_items.insert().values(
+            item_id=request_data.res_id,
+            item_type='reses',
+            sent_type='guia',
+            date_sent=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(query)
+
+        await log_activity('INFO', 'send_reses_guia_success', f'Guía enviada exitosamente a {request_data.email}')
+        return {"status": "success", "message": "Guía enviada exitosamente"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'send_reses_guia_failed', f"Error al enviar guía: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al enviar guía: {e}")
 
 @app.post("/api/permisos", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def create_permiso(permiso: PermisoCreate):

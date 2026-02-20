@@ -65,6 +65,62 @@ def list_pdfs_in_folder(folder_id):
             break
     return pdfs
 
+def list_files_in_folder(folder_id):
+    """
+    Lista todos los archivos en una carpeta específica de Google Drive.
+    """
+    service = get_drive_service()
+    files = []
+    page_token = None
+
+    if not folder_id:
+        return []
+
+    while True:
+        try:
+            query = f"'{folder_id}' in parents and trashed = false"
+            response = service.files().list(
+                q=query,
+                spaces='drive',
+                fields='nextPageToken, files(id, name, webViewLink, mimeType)',
+                pageToken=page_token
+            ).execute()
+
+            for file in response.get('files', []):
+                files.append({
+                    'id': file.get('id'), 
+                    'name': file.get('name'), 
+                    'webViewLink': file.get('webViewLink'),
+                    'mimeType': file.get('mimeType')
+                })
+
+            page_token = response.get('nextPageToken', None)
+            if page_token is None:
+                break
+        except Exception as e:
+            print(f"Error al listar archivos en la carpeta {folder_id}: {e}")
+            break
+    return files
+
+def export_file_as_pdf(file_id):
+    """
+    Exporta un documento de Google Drive (o archivo convertible) a PDF.
+    """
+    service = get_drive_service()
+    try:
+        # Usamos export si es un Google Doc, o get_media si ya es PDF.
+        # Por ahora asumimos exportar a PDF.
+        request = service.files().export_media(fileId=file_id, mimeType='application/pdf')
+        fh = io.BytesIO()
+        downloader = http.MediaIoBaseDownload(fh, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        return fh.getvalue()
+    except Exception as e:
+        print(f"Error al exportar el archivo {file_id} a PDF: {e}")
+        return None
+
 if __name__ == '__main__':
     # Bloque de prueba para la función list_pdfs_in_folder
     print("Probando la función list_pdfs_in_folder...")

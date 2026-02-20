@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReses } from '../utils/api';
+import { fetchReses, sendResesGuia } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -11,6 +11,7 @@ const Reses = () => {
     const [error, setError] = useState(null);
     const [expandedStates, setExpandedStates] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
+    const [sendingGuia, setSendingGuia] = useState({});
 
     // Paginación
     const [currentPage, setCurrentPage] = useState(1);
@@ -50,9 +51,43 @@ const Reses = () => {
         }));
     };
 
+    const handleSendGuia = async (res) => {
+        if (!res.docx_id) {
+            alert("No se encontró el archivo Docx asociado a este registro.");
+            return;
+        }
+
+        if (!res.Email) {
+            alert("El registro no tiene un email configurado.");
+            return;
+        }
+
+        const resId = res.ID;
+        setSendingGuia(prev => ({ ...prev, [resId]: true }));
+
+        try {
+            await sendResesGuia({
+                res_id: resId,
+                email: res.Email,
+                docx_id: res.docx_id
+            });
+            alert(`Guía enviada exitosamente a ${res.Email}`);
+            // Actualizar estados locales para mostrar etiquetas
+            setReses(prevReses => prevReses.map(r =>
+                r.ID === resId
+                    ? { ...r, sent_statuses: [...(r.sent_statuses || []), 'guia'] }
+                    : r
+            ));
+        } catch (err) {
+            console.error("Error al enviar guía:", err);
+            alert(`Error al enviar guía: ${err.message}`);
+        } finally {
+            setSendingGuia(prev => ({ ...prev, [resId]: false }));
+        }
+    };
+
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
-        // Handle specific date format if needed, but Google Sheets usually provides a readable string
         return dateString;
     };
 
@@ -89,7 +124,16 @@ const Reses = () => {
                     {filteredReses.map((item, index) => (
                         <div key={item.ID || index} className="inscripcion-card" data-expanded={!!expandedStates[index]}>
                             <div className="card-header" onClick={() => toggleExpand(index)}>
-                                <h3>{item['Nombre y Apellido'] || 'Nombre no disponible'} - {item['Especie']} ({item['Cantidad de reses']})</h3>
+                                <div className="header-info">
+                                    <h3>{item['Nombre y Apellido'] || 'Nombre no disponible'} - {item['Especie']} ({item['Cantidad de reses']})</h3>
+                                    {item.sent_statuses && item.sent_statuses.length > 0 && (
+                                        <div className="sent-labels">
+                                            {item.sent_statuses.map(status => (
+                                                <span key={status} className={`sent-badge ${status}`}>Enviado: {status}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <span className="expand-toggle">▼</span>
                             </div>
 
@@ -105,7 +149,7 @@ const Reses = () => {
                                         <p><strong>Especie:</strong> {item['Especie'] || 'N/A'}</p>
                                         <p><strong>Sexo:</strong> {item['Sexo'] || 'N/A'}</p>
                                         <p><strong>Precinto ACM:</strong> {item['Número Precinto (A.C.M)'] || 'N/A'}</p>
-                                        <p><strong>Remitido a:</strong> {item['Remitido a '] || 'N/A'}</p>
+                                        <p><strong>Remitito a:</strong> {item['Remitido a '] || 'N/A'}</p>
                                         <p><strong>Domicilio Remitente:</strong> {item['Domicilio remitente'] || 'N/A'}</p>
                                         <p><strong>Ciudad Remitente:</strong> {item['Ciudad remitente'] || 'N/A'}</p>
                                         <p><strong>Provincia Remitente:</strong> {item['Provincia remitente'] || 'N/A'}</p>
@@ -113,6 +157,24 @@ const Reses = () => {
                                         <p><strong>Transporte:</strong> {item['Medio de transporte'] || 'N/A'}</p>
                                         <p><strong>Patente:</strong> {item['Patente Número'] || 'N/A'}</p>
                                         <p><strong>Email:</strong> {item['Email'] || 'N/A'}</p>
+                                    </div>
+
+                                    <div className="card-actions">
+                                        {item.docx_link ? (
+                                            <a href={item.docx_link} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
+                                                Editar Guía (Docx)
+                                            </a>
+                                        ) : (
+                                            <button className="btn btn-disabled" disabled title="No se encontró el archivo en la carpeta Docx">Docx no encontrado</button>
+                                        )}
+
+                                        <button
+                                            className={`btn btn-primary ${sendingGuia[item.ID] ? 'btn-loading' : ''}`}
+                                            onClick={(e) => { e.stopPropagation(); handleSendGuia(item); }}
+                                            disabled={sendingGuia[item.ID] || !item.docx_id}
+                                        >
+                                            {sendingGuia[item.ID] ? 'Enviando...' : 'Enviar Guía (PDF)'}
+                                        </button>
                                     </div>
                                 </div>
                             )}

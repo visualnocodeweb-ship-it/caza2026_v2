@@ -52,6 +52,27 @@ export const fetchReses = async (page = 1, limit = 10) => {
   }
 };
 
+export const sendResesGuia = async (guiaData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/send-reses-guia`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(guiaData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error sending reses guia:", error);
+    throw error;
+  }
+};
+
 export const fetchErrorLog = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/error-log`);
