@@ -13,6 +13,7 @@ import RecaudacionesStats from './pages/dashboard/RecaudacionesStats';
 import PermisosStats from './pages/dashboard/PermisosStats';
 import NotFound from './pages/NotFound';
 import PagosRealizados from './pages/PagosRealizados';
+import Reses from './pages/Reses';
 
 const App = () => {
   return (
@@ -42,6 +43,11 @@ const App = () => {
             <Route path="/pagos" element={
               <PrivateRoute>
                 <PagosRealizados />
+              </PrivateRoute>
+            } />
+            <Route path="/reses" element={
+              <PrivateRoute>
+                <Reses />
               </PrivateRoute>
             } />
 

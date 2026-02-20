@@ -13,6 +13,9 @@ const Navbar = () => {
       <NavLink to="/permiso-caza" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
         Permiso de Caza
       </NavLink>
+      <NavLink to="/reses" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+        Reses
+      </NavLink>
       <NavLink to="/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
         Dashboard
       </NavLink>

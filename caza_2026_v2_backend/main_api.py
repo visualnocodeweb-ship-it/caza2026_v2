@@ -520,6 +520,41 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         await log_activity('ERROR', 'get_permisos_failed', f"Error al obtener permisos: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener permisos: {e}")
 
+@app.get("/api/reses", response_model=Dict[str, Any])
+async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
+    await log_activity('INFO', 'get_reses_request', f'Solicitud de reses - Página: {page}, Límite: {limit}')
+    try:
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        reses_tab_name = "reses"
+        
+        if not sheet_id:
+            raise ValueError("GOOGLE_SHEET_ID no configurado.")
+
+        df = sheets_services.read_sheet_data(sheet_id, reses_tab_name)
+
+        if df.empty:
+            return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        # Invertir para que lo más nuevo esté arriba
+        df = df.iloc[::-1]
+
+        total_records = len(df)
+        offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+
+        paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+
+        return {
+            "data": paginated_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_reses_failed', f"Error al obtener reses: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener reses: {e}")
+
 @app.post("/api/permisos", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def create_permiso(permiso: PermisoCreate):
     await log_activity('INFO', 'create_permiso_request', f'Solicitud para crear permiso para: {permiso.email_solicitante}')
