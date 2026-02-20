@@ -175,6 +175,33 @@ const Reses = () => {
         }
     };
 
+    const handleSaveAmount = async (res) => {
+        try {
+            const resId = res.ID;
+            const amount = paymentAmounts[resId];
+            if (!amount) {
+                alert("Por favor, ingrese un monto para guardar.");
+                return;
+            }
+            await logResesAction({
+                res_id: resId,
+                action: `Monto de cobro guardado: $${amount}`,
+                amount: amount
+            });
+
+            // Actualizar localmente el monto permanente para feedback visual
+            setReses(prevReses => prevReses.map(r =>
+                r.ID === resId ? { ...r, permanent_amount: parseFloat(amount) } : r
+            ));
+
+            alert("Monto guardado exitosamente.");
+            updateHistoryLocally(resId, `Monto de cobro guardado: $${amount}`);
+        } catch (err) {
+            console.error("Error saving amount:", err);
+            alert("Error al guardar el monto.");
+        }
+    };
+
     const updateSentStatusLocally = (resId, type) => {
         setReses(prevReses => prevReses.map(r =>
             r.ID === resId
@@ -269,88 +296,104 @@ const Reses = () => {
                                         <p><strong>Email:</strong> {item['Email'] || 'N/A'}</p>
                                     </div>
 
-                                    <div className="action-buttons-container" style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                                        {/* Sección de Pagado */}
-                                        <div className="reses-paid-toggle" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px', padding: '10px', backgroundColor: '#f0f7ff', borderRadius: '6px' }}>
-                                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#0056b3' }}>¿Pagado?</span>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '14px' }}>
-                                                    <input
-                                                        type="radio"
-                                                        name={`paid-${item.ID}`}
-                                                        checked={item.is_paid === true}
-                                                        onChange={() => handleTogglePaid(item, true)}
-                                                    /> Sí
-                                                </label>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '14px' }}>
-                                                    <input
-                                                        type="radio"
-                                                        name={`paid-${item.ID}`}
-                                                        checked={item.is_paid === false}
-                                                        onChange={() => handleTogglePaid(item, false)}
-                                                    /> No
-                                                </label>
+                                    <div className="reses-actions-wrapper" style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                                        {/* Sección de Acciones: Agrupada y Clara */}
+                                        <div className="action-buttons-container" style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '8px', backgroundColor: '#fff' }}>
+                                            <h5 style={{ margin: '0 0 15px', fontSize: '15px', color: '#333', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>Acciones de Gestión</h5>
+
+                                            {/* Fila 1: Estado de Pago */}
+                                            <div className="reses-paid-toggle" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', padding: '10px', backgroundColor: '#f0f7ff', borderRadius: '6px' }}>
+                                                <span style={{ fontSize: '14px', fontWeight: '700', color: '#0056b3' }}>¿Pagado?</span>
+                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '14px' }}>
+                                                        <input
+                                                            type="radio"
+                                                            name={`paid-${item.ID}`}
+                                                            checked={item.is_paid === true}
+                                                            onChange={() => handleTogglePaid(item, true)}
+                                                        /> Sí
+                                                    </label>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '14px' }}>
+                                                        <input
+                                                            type="radio"
+                                                            name={`paid-${item.ID}`}
+                                                            checked={item.is_paid === false}
+                                                            onChange={() => handleTogglePaid(item, false)}
+                                                        /> No
+                                                    </label>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div className="reses-payment-section" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-                                            <label htmlFor={`amount-${item.ID}`} style={{ fontSize: '14px', fontWeight: '600' }}>Monto Cobro:</label>
-                                            <input
-                                                id={`amount-${item.ID}`}
-                                                type="number"
-                                                placeholder="Ej: 5000"
-                                                value={paymentAmounts[item.ID] || ''}
-                                                onChange={(e) => handleAmountChange(item.ID, e.target.value)}
-                                                className="search-input"
-                                                style={{ width: '120px', padding: '5px 10px', margin: 0 }}
-                                            />
-                                            <button
-                                                className={`action-button btn-primary ${sendingPayment[item.ID] ? 'btn-loading' : ''}`}
-                                                onClick={(e) => { e.stopPropagation(); handleSendPayment(item); }}
-                                                disabled={sendingPayment[item.ID]}
-                                                style={{ margin: 0 }}
-                                            >
-                                                {sendingPayment[item.ID] ? 'Enviando...' : 'Enviar Cobro'}
-                                            </button>
-                                        </div>
-
-                                        <div className="guia-actions" style={{ display: 'flex', gap: '10px' }}>
-                                            {item.docx_link ? (
+                                            {/* Fila 2: Monto y Cobro */}
+                                            <div className="reses-payment-section" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                                                <label htmlFor={`amount-${item.ID}`} style={{ fontSize: '14px', fontWeight: '600' }}>Monto Cobro:</label>
+                                                <input
+                                                    id={`amount-${item.ID}`}
+                                                    type="number"
+                                                    placeholder="Ej: 5000"
+                                                    value={paymentAmounts[item.ID] || ''}
+                                                    onChange={(e) => handleAmountChange(item.ID, e.target.value)}
+                                                    className="search-input"
+                                                    style={{ width: '100px', padding: '5px 10px', margin: 0 }}
+                                                />
                                                 <button
                                                     className="action-button btn-secondary"
-                                                    onClick={(e) => { e.stopPropagation(); handleEditDocx(item); }}
+                                                    onClick={(e) => { e.stopPropagation(); handleSaveAmount(item); }}
+                                                    style={{ margin: 0, padding: '5px 15px', fontSize: '13px', backgroundColor: '#6c757d' }}
                                                 >
-                                                    Editar Guía (Docx)
+                                                    Guardar
                                                 </button>
-                                            ) : (
-                                                <button className="action-button btn-disabled" disabled title="No se encontró el archivo en la carpeta Docx">Docx no encontrado</button>
-                                            )}
+                                                <button
+                                                    className={`action-button btn-primary ${sendingPayment[item.ID] ? 'btn-loading' : ''}`}
+                                                    onClick={(e) => { e.stopPropagation(); handleSendPayment(item); }}
+                                                    disabled={sendingPayment[item.ID]}
+                                                    style={{ margin: 0 }}
+                                                >
+                                                    {sendingPayment[item.ID] ? 'Enviando...' : 'Enviar Cobro'}
+                                                </button>
+                                            </div>
 
-                                            <button
-                                                className={`action-button btn-success ${sendingGuia[item.ID] ? 'btn-loading' : ''}`}
-                                                onClick={(e) => { e.stopPropagation(); handleSendGuia(item); }}
-                                                disabled={sendingGuia[item.ID] || !item.docx_id}
-                                            >
-                                                {sendingGuia[item.ID] ? 'Enviando...' : 'Enviar Guía (PDF)'}
-                                            </button>
-                                        </div>
-                                    </div>
+                                            {/* Fila 3: Guías */}
+                                            <div className="guia-actions" style={{ display: 'flex', gap: '10px' }}>
+                                                {item.docx_link ? (
+                                                    <button
+                                                        className="action-button btn-secondary"
+                                                        onClick={(e) => { e.stopPropagation(); handleEditDocx(item); }}
+                                                    >
+                                                        Editar Guía (Docx)
+                                                    </button>
+                                                ) : (
+                                                    <button className="action-button btn-disabled" disabled title="No se encontró el archivo en la carpeta Docx">Docx no encontrado</button>
+                                                )}
 
-                                    {item.history && item.history.length > 0 && (
-                                        <div className="history-section" style={{ marginTop: '20px', backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px' }}>
-                                            <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#333' }}>Historial de Movimientos</h4>
-                                            <div className="history-list" style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                                                {item.history.map((log, lIdx) => (
-                                                    <div key={lIdx} className="history-item" style={{ fontSize: '12px', padding: '5px 0', borderBottom: '1px solid #eee', color: '#555' }}>
-                                                        <span style={{ fontWeight: '600', color: '#888', marginRight: '8px' }}>
-                                                            {new Date(log.timestamp).toLocaleString()}:
-                                                        </span>
-                                                        {log.details}
-                                                    </div>
-                                                ))}
+                                                <button
+                                                    className={`action-button btn-success ${sendingGuia[item.ID] ? 'btn-loading' : ''}`}
+                                                    onClick={(e) => { e.stopPropagation(); handleSendGuia(item); }}
+                                                    disabled={sendingGuia[item.ID] || !item.docx_id}
+                                                >
+                                                    {sendingGuia[item.ID] ? 'Enviando...' : 'Enviar Guía (PDF)'}
+                                                </button>
                                             </div>
                                         </div>
-                                    )}
+
+                                        {/* Sección de Historial: Separada y al final */}
+                                        {item.history && item.history.length > 0 && (
+                                            <div className="history-section" style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px dashed #ccc' }}>
+                                                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Historial de Movimientos</h4>
+                                                <div className="history-list" style={{ maxHeight: '120px', overflowY: 'auto', borderLeft: '2px solid #ddd', paddingLeft: '10px' }}>
+                                                    {item.history.map((log, lIdx) => (
+                                                        <div key={lIdx} className="history-item" style={{ fontSize: '11px', padding: '4px 0', borderBottom: '1px solid #f0f0f0', color: '#555' }}>
+                                                            <span style={{ fontWeight: '600', color: '#888', marginRight: '8px' }}>
+                                                                {new Date(log.timestamp).toLocaleString()}:
+                                                            </span>
+                                                            {log.details}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
