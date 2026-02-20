@@ -642,6 +642,67 @@ async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
         await log_activity('ERROR', 'send_reses_guia_failed', f"Error al enviar guía: {e}")
         raise HTTPException(status_code=500, detail=f"Error al enviar guía: {e}")
 
+    except Exception as e:
+        await log_activity('ERROR', 'send_reses_guia_failed', f"Error al enviar guía: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al enviar guía: {e}")
+
+class SendResesPaymentRequest(BaseModel):
+    res_id: str
+    email: str
+    amount: str
+
+@app.post("/api/send-reses-payment", response_model=Dict[str, str])
+async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
+    await log_activity('INFO', 'send_reses_payment_request', f'Solicitud para enviar cobro a: {request_data.email} para res: {request_data.res_id} por ${request_data.amount}')
+    try:
+        sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+        subject = f"Pago de Guía de Reses - {request_data.res_id}"
+        
+        # Cuerpo del email solicitado por el usuario
+        html_content = f"""
+        <html>
+        <body>
+            <h2>Solicitud de Pago - Guía de Reses</h2>
+            <p>Hola,</p>
+            <p>Para obtener tu guía de reses, tenés que transferir al siguiente link: 
+               <a href="https://link.mercadopago.com.ar/faunaneuquen">link.mercadopago.com.ar/faunaneuquen</a>
+            </p>
+            <p>El monto a abonar es: <strong>${request_data.amount}</strong></p>
+            <br>
+            <p><strong>IMPORTANTE:</strong> Por favor, adjuntar comprobante o captura de pago respondiendo a este correo.</p>
+            <br>
+            <p>Saludos,</p>
+            <p>Sistema de Control Caza 2026</p>
+        </body>
+        </html>
+        """
+
+        success = email_services.send_simple_email(
+            to_email=request_data.email,
+            subject=subject,
+            html_content=html_content,
+            sender_email=sender_email
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Error al enviar el email con Resend.")
+
+        # Registrar Acción
+        query = sent_items.insert().values(
+            item_id=request_data.res_id,
+            item_type='reses',
+            sent_type='cobro',
+            date_sent=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(query)
+
+        await log_activity('INFO', 'send_reses_payment_success', f'Cobro enviado exitosamente a {request_data.email} por ${request_data.amount}')
+        return {"status": "success", "message": "Cobro enviado exitosamente"}
+
+    except Exception as e:
+        await log_activity('ERROR', 'send_reses_payment_failed', f"Error al enviar cobro: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al enviar cobro: {e}")
+
 @app.post("/api/permisos", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def create_permiso(permiso: PermisoCreate):
     await log_activity('INFO', 'create_permiso_request', f'Solicitud para crear permiso para: {permiso.email_solicitante}')

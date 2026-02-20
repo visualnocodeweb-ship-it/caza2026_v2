@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReses, sendResesGuia } from '../utils/api';
+import { fetchReses, sendResesGuia, sendResesPayment } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -12,6 +12,8 @@ const Reses = () => {
     const [expandedStates, setExpandedStates] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [sendingGuia, setSendingGuia] = useState({});
+    const [sendingPayment, setSendingPayment] = useState({});
+    const [paymentAmounts, setPaymentAmounts] = useState({});
 
     // Paginación
     const [currentPage, setCurrentPage] = useState(1);
@@ -72,18 +74,57 @@ const Reses = () => {
                 docx_id: res.docx_id
             });
             alert(`Guía enviada exitosamente a ${res.Email}`);
-            // Actualizar estados locales para mostrar etiquetas
-            setReses(prevReses => prevReses.map(r =>
-                r.ID === resId
-                    ? { ...r, sent_statuses: [...(r.sent_statuses || []), 'guia'] }
-                    : r
-            ));
+            updateSentStatusLocally(resId, 'guia');
         } catch (err) {
             console.error("Error al enviar guía:", err);
             alert(`Error al enviar guía: ${err.message}`);
         } finally {
             setSendingGuia(prev => ({ ...prev, [resId]: false }));
         }
+    };
+
+    const handleSendPayment = async (res) => {
+        const resId = res.ID;
+        const amount = paymentAmounts[resId];
+
+        if (!amount) {
+            alert("Por favor, ingrese un monto para el cobro.");
+            return;
+        }
+
+        if (!res.Email) {
+            alert("El registro no tiene un email configurado.");
+            return;
+        }
+
+        setSendingPayment(prev => ({ ...prev, [resId]: true }));
+
+        try {
+            await sendResesPayment({
+                res_id: resId,
+                email: res.Email,
+                amount: amount
+            });
+            alert(`Solicitud de cobro por $${amount} enviada a ${res.Email}`);
+            updateSentStatusLocally(resId, 'cobro');
+        } catch (err) {
+            console.error("Error al enviar cobro:", err);
+            alert(`Error al enviar cobro: ${err.message}`);
+        } finally {
+            setSendingPayment(prev => ({ ...prev, [resId]: false }));
+        }
+    };
+
+    const updateSentStatusLocally = (resId, type) => {
+        setReses(prevReses => prevReses.map(r =>
+            r.ID === resId
+                ? { ...r, sent_statuses: [...new Set([...(r.sent_statuses || []), type])] }
+                : r
+        ));
+    };
+
+    const handleAmountChange = (resId, value) => {
+        setPaymentAmounts(prev => ({ ...prev, [resId]: value }));
     };
 
     const formatDate = (dateString) => {
@@ -149,7 +190,7 @@ const Reses = () => {
                                         <p><strong>Especie:</strong> {item['Especie'] || 'N/A'}</p>
                                         <p><strong>Sexo:</strong> {item['Sexo'] || 'N/A'}</p>
                                         <p><strong>Precinto ACM:</strong> {item['Número Precinto (A.C.M)'] || 'N/A'}</p>
-                                        <p><strong>Remitito a:</strong> {item['Remitido a '] || 'N/A'}</p>
+                                        <p><strong>Remitido a:</strong> {item['Remitido a '] || 'N/A'}</p>
                                         <p><strong>Domicilio Remitente:</strong> {item['Domicilio remitente'] || 'N/A'}</p>
                                         <p><strong>Ciudad Remitente:</strong> {item['Ciudad remitente'] || 'N/A'}</p>
                                         <p><strong>Provincia Remitente:</strong> {item['Provincia remitente'] || 'N/A'}</p>
@@ -159,22 +200,45 @@ const Reses = () => {
                                         <p><strong>Email:</strong> {item['Email'] || 'N/A'}</p>
                                     </div>
 
-                                    <div className="card-actions">
-                                        {item.docx_link ? (
-                                            <a href={item.docx_link} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
-                                                Editar Guía (Docx)
-                                            </a>
-                                        ) : (
-                                            <button className="btn btn-disabled" disabled title="No se encontró el archivo en la carpeta Docx">Docx no encontrado</button>
-                                        )}
+                                    <div className="action-buttons" style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+                                        <div className="reses-payment-section" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                                            <label htmlFor={`amount-${item.ID}`} style={{ fontSize: '14px', fontWeight: '600' }}>Monto Cobro:</label>
+                                            <input
+                                                id={`amount-${item.ID}`}
+                                                type="number"
+                                                placeholder="Ej: 5000"
+                                                value={paymentAmounts[item.ID] || ''}
+                                                onChange={(e) => handleAmountChange(item.ID, e.target.value)}
+                                                className="search-input"
+                                                style={{ width: '120px', padding: '5px 10px', margin: 0 }}
+                                            />
+                                            <button
+                                                className={`action-button btn-primary ${sendingPayment[item.ID] ? 'btn-loading' : ''}`}
+                                                onClick={(e) => { e.stopPropagation(); handleSendPayment(item); }}
+                                                disabled={sendingPayment[item.ID]}
+                                                style={{ margin: 0 }}
+                                            >
+                                                {sendingPayment[item.ID] ? 'Enviando...' : 'Enviar Cobro'}
+                                            </button>
+                                        </div>
 
-                                        <button
-                                            className={`btn btn-primary ${sendingGuia[item.ID] ? 'btn-loading' : ''}`}
-                                            onClick={(e) => { e.stopPropagation(); handleSendGuia(item); }}
-                                            disabled={sendingGuia[item.ID] || !item.docx_id}
-                                        >
-                                            {sendingGuia[item.ID] ? 'Enviando...' : 'Enviar Guía (PDF)'}
-                                        </button>
+                                        <div className="guia-actions" style={{ display: 'flex', gap: '10px' }}>
+                                            {item.docx_link ? (
+                                                <a href={item.docx_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary">
+                                                    Editar Guía (Docx)
+                                                </a>
+                                            ) : (
+                                                <button className="action-button btn-disabled" disabled title="No se encontró el archivo en la carpeta Docx">Docx no encontrado</button>
+                                            )}
+
+                                            <button
+                                                className={`action-button btn-success ${sendingGuia[item.ID] ? 'btn-loading' : ''}`}
+                                                onClick={(e) => { e.stopPropagation(); handleSendGuia(item); }}
+                                                disabled={sendingGuia[item.ID] || !item.docx_id}
+                                            >
+                                                {sendingGuia[item.ID] ? 'Enviando...' : 'Enviar Guía (PDF)'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

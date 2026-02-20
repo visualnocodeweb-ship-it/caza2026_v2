@@ -73,6 +73,27 @@ export const sendResesGuia = async (guiaData) => {
   }
 };
 
+export const sendResesPayment = async (paymentData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/send-reses-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(paymentData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error sending reses payment:", error);
+    throw error;
+  }
+};
+
 export const fetchErrorLog = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/error-log`);
