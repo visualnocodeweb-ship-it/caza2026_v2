@@ -156,10 +156,12 @@ const Reses = () => {
     const handleTogglePaid = async (res, paidStatus) => {
         try {
             const resId = res.ID;
+            const amount = paymentAmounts[resId];
             await logResesAction({
                 res_id: resId,
                 action: `Estado de pago cambiado a: ${paidStatus ? 'SÍ' : 'NO'}`,
-                is_paid: paidStatus
+                is_paid: paidStatus,
+                amount: amount
             });
 
             // Actualizar localmente

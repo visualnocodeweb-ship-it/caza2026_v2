@@ -1316,8 +1316,12 @@ async def get_recaudaciones_stats():
         # Recaudación total de permisos (estado 'approved')
         total_permisos_aprobados_query = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
         recaudacion_permisos = await database.fetch_val(total_permisos_aprobados_query) or 0.0
+        
+        # Recaudación total de reses (is_paid es True)
+        total_reses_query = select(func.sum(reses_details.c.amount)).where(reses_details.c.is_paid == True)
+        recaudacion_reses = await database.fetch_val(total_reses_query) or 0.0
 
-        recaudacion_total = recaudacion_inscripciones + recaudacion_permisos
+        recaudacion_total = recaudacion_inscripciones + recaudacion_permisos + recaudacion_reses
 
         # Recaudación de permisos por mes
         recaudacion_permisos_por_mes_query = select(
@@ -1339,6 +1343,7 @@ async def get_recaudaciones_stats():
             "recaudacion_total": recaudacion_total,
             "recaudacion_inscripciones": recaudacion_inscripciones,
             "recaudacion_permisos": recaudacion_permisos,
+            "recaudacion_reses": recaudacion_reses,
             "recaudacion_permisos_por_mes": recaudacion_permisos_por_mes
         }
     except Exception as e:

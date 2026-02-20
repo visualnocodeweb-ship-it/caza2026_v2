@@ -41,21 +41,23 @@ const ResesStats = () => {
             {error && <p className="error-text">{error}</p>}
 
             {stats && (
-                <div className="stats-grid">
-                    <div className="stat-card">
-                        <h4>Total de Reses</h4>
-                        <p className="stat-value">{stats.total_reses}</p>
-                        <p className="stat-label">registradas en la hoja de cálculo</p>
+                <div className="stat-widget-container">
+                    <div className="stat-widget">
+                        <div className="stat-widget-count">{stats.total_reses}</div>
+                        <div className="stat-widget-label">Total de Reses</div>
+                        <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>registradas en la hoja de cálculo</p>
                     </div>
-                    <div className="stat-card revenue">
-                        <h4>Recaudación</h4>
-                        <p className="stat-value text-success">${stats.total_revenue.toLocaleString()}</p>
-                        <p className="stat-label">Suma de montos con estado "PAGADO: SÍ"</p>
+                    <div className="stat-widget">
+                        <div className="stat-widget-count text-success">
+                            {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(stats.total_revenue)}
+                        </div>
+                        <div className="stat-widget-label">Recaudación</div>
+                        <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>Suma de montos con estado "PAGADO: SÍ"</p>
                     </div>
-                    <div className="stat-card">
-                        <h4>Total Registros</h4>
-                        <p className="stat-value">{stats.total_records}</p>
-                        <p className="stat-label">filas procesadas</p>
+                    <div className="stat-widget">
+                        <div className="stat-widget-count">{stats.total_records}</div>
+                        <div className="stat-widget-label">Total Registros</div>
+                        <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>filas procesadas</p>
                     </div>
                 </div>
             )}
