@@ -813,9 +813,18 @@ async def get_reses_stats():
             except:
                 continue
 
-        # 2. Recaudación: Sumar montos de reses_details donde is_paid es True
-        revenue_query = select(func.sum(reses_details.c.amount)).where(reses_details.c.is_paid == True)
-        total_revenue = await database.fetch_val(revenue_query)
+        # 2. Recaudación: Sumar montos de reses_details donde is_paid es True Y el ID existe en la hoja
+        # Extraemos los IDs válidos (no vacíos) de la hoja para filtrar la DB
+        valid_ids = [str(row.get('ID', '')).strip() for row in sheets_data if row.get('ID')]
+        
+        if not valid_ids:
+            total_revenue = 0
+        else:
+            revenue_query = select(func.sum(reses_details.c.amount)).where(
+                reses_details.c.is_paid == True,
+                reses_details.c.res_id.in_(valid_ids)
+            )
+            total_revenue = await database.fetch_val(revenue_query)
         
         return {
             "total_reses": total_reses,
@@ -1319,9 +1328,21 @@ async def get_recaudaciones_stats():
         total_permisos_aprobados_query = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
         recaudacion_permisos = await database.fetch_val(total_permisos_aprobados_query) or 0.0
         
-        # Recaudación total de reses (is_paid es True)
-        total_reses_query = select(func.sum(reses_details.c.amount)).where(reses_details.c.is_paid == True)
-        recaudacion_reses = await database.fetch_val(total_reses_query) or 0.0
+        # Recaudación total de reses (is_paid es True Y el ID existe en Google Sheets)
+        reses_sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        reses_df = sheets_services.read_sheet_data(reses_sheet_id, "reses")
+        valid_res_ids = []
+        if not reses_df.empty:
+            valid_res_ids = [str(rid).strip() for rid in reses_df['ID'].tolist() if rid and str(rid).strip()]
+
+        if not valid_res_ids:
+            recaudacion_reses = 0.0
+        else:
+            total_reses_query = select(func.sum(reses_details.c.amount)).where(
+                reses_details.c.is_paid == True,
+                reses_details.c.res_id.in_(valid_res_ids)
+            )
+            recaudacion_reses = await database.fetch_val(total_reses_query) or 0.0
 
         recaudacion_total = recaudacion_inscripciones + recaudacion_permisos + recaudacion_reses
 
