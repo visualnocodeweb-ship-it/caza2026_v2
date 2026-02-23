@@ -65,11 +65,15 @@ const Reses = () => {
     const handleEditDocx = async (res) => {
         try {
             const amount = paymentAmounts[res.ID];
-            await logResesAction({
+
+            const payload = {
                 res_id: res.ID,
                 action: "Se abrió el archivo Docx para edición",
-                amount: amount
-            });
+            };
+            if (amount) {
+                payload.amount = amount.toString();
+            }
+            await logResesAction(payload);
             // Abrir en nueva pestaña
             window.open(res.docx_link, '_blank');
             // Actualizar historial localmente para feedback inmediato
@@ -100,7 +104,7 @@ const Reses = () => {
                 await logResesAction({
                     res_id: resId,
                     action: `Iniciando envío de Guía (PDF) con monto de cobro anotado: $${amount}`,
-                    amount: amount
+                    amount: amount.toString()
                 });
             }
 
@@ -157,12 +161,18 @@ const Reses = () => {
         try {
             const resId = res.ID;
             const amount = paymentAmounts[resId];
-            await logResesAction({
+
+            const payload = {
                 res_id: resId,
                 action: `Estado de pago cambiado a: ${paidStatus ? 'SÍ' : 'NO'}`,
                 is_paid: paidStatus,
-                amount: amount
-            });
+            };
+
+            if (amount) {
+                payload.amount = amount.toString();
+            }
+
+            await logResesAction(payload);
 
             // Actualizar localmente
             setReses(prevReses => prevReses.map(r =>
@@ -186,7 +196,7 @@ const Reses = () => {
             await logResesAction({
                 res_id: resId,
                 action: `Monto de cobro guardado: $${amount}`,
-                amount: amount
+                amount: amount.toString()
             });
 
             // Actualizar localmente el monto permanente para feedback visual
