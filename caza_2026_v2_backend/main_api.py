@@ -14,6 +14,31 @@ import math # Needed for ceil
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
+# --- Helpers ---
+def safe_str_id(val) -> Optional[str]:
+    """Convierte IDs (especialmente de Pandas/Sheets) a string limpio sin decimales .0"""
+    if val is None:
+        return None
+    s_val = str(val).strip()
+    if s_val == '' or s_val.lower() == 'nan':
+        return None
+    # Si pandas lo leyó como float y es un entero (ej: 1.0), convertir a "1"
+    if isinstance(val, (float, int)):
+        try:
+            if float(val).is_integer():
+                return str(int(float(val)))
+        except:
+            pass
+    # Caso borde: el string mismo viene como "1.0"
+    if '.' in s_val:
+        try:
+            f_val = float(s_val)
+            if f_val.is_integer():
+                return str(int(f_val))
+        except:
+            pass
+    return s_val
+
 # --- Pydantic Models ---
 class InscriptionCreate(BaseModel):
     # Ajusta estos campos según la estructura real de tus inscripciones en Google Sheets
@@ -193,7 +218,10 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
 
         # Enriquecer con estado de pago desde la base de datos
         for inscripcion in paginated_data:
-            numero_inscripcion = inscripcion.get('numero_inscripcion')
+            numero_inscripcion = safe_str_id(inscripcion.get('numero_inscripcion'))
+            # Asegurar que el ID en el dict sea el sanitizado para el frontend
+            if numero_inscripcion:
+                inscripcion['numero_inscripcion'] = numero_inscripcion
 
             # Asociar PDF
             if numero_inscripcion and numero_inscripcion in pdf_dict:
@@ -329,7 +357,7 @@ async def link_data_endpoint():
             if len(row) <= numero_inscripcion_idx:
                 continue
                 
-            numero_inscripcion = row[numero_inscripcion_idx]
+            numero_inscripcion = safe_str_id(row[numero_inscripcion_idx])
             if not numero_inscripcion:
                 continue
             
@@ -478,7 +506,10 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
 
         # Enriquecer con estado de pago desde la base de datos
         for permiso in paginated_data:
-            permiso_id = permiso.get('ID')
+            permiso_id = safe_str_id(permiso.get('ID'))
+            # Asegurar que el ID en el dict sea el sanitizado para el frontend
+            if permiso_id:
+                permiso['ID'] = permiso_id
 
             # Asociar PDF
             if permiso_id and permiso_id in pdf_dict:
@@ -560,20 +591,13 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
 
         # Nombres de acciones para el historial
         for res in paginated_data:
-            res_id_raw = res.get('ID')
-            res_id = None
-            if res_id_raw is not None and str(res_id_raw).strip() != '':
-                # If pandas read it as float, safe cast it to avoid '1.0' string
-                if isinstance(res_id_raw, float) and res_id_raw.is_integer():
-                    res_id = str(int(res_id_raw))
-                else:
-                    res_id = str(res_id_raw).strip()
+            res_id = safe_str_id(res.get('ID'))
             
             # Asociar Docx
             if res_id and res_id in docx_dict:
                 res['docx_link'] = docx_dict[res_id]['webViewLink']
                 res['docx_id'] = docx_dict[res_id]['id']
-            # Reasignar res['ID'] unificado para el frontend (opcional pero seguro)
+            # Reasignar res['ID'] unificado para el frontend
             if res_id:
                 res['ID'] = res_id
 
@@ -825,7 +849,7 @@ async def get_reses_stats():
 
         # 2. Recaudación: Sumar montos de reses_details donde is_paid es True Y el ID existe en la hoja
         # Extraemos los IDs válidos (no vacíos) de la hoja para filtrar la DB
-        valid_ids = [str(row.get('ID', '')).strip() for row in sheets_data if row.get('ID')]
+        valid_ids = [safe_str_id(row.get('ID')) for row in sheets_data if safe_str_id(row.get('ID'))]
         
         if not valid_ids:
             total_revenue = 0
@@ -1343,7 +1367,7 @@ async def get_recaudaciones_stats():
         reses_df = sheets_services.read_sheet_data(reses_sheet_id, "reses")
         valid_res_ids = []
         if not reses_df.empty:
-            valid_res_ids = [str(rid).strip() for rid in reses_df['ID'].tolist() if rid and str(rid).strip()]
+            valid_res_ids = [safe_str_id(rid) for rid in reses_df['ID'].tolist() if safe_str_id(rid)]
 
         if not valid_res_ids:
             recaudacion_reses = 0.0
@@ -1543,7 +1567,8 @@ async def view_credential_endpoint(numero_inscripcion: str):
         df = sheets_services.read_sheet_data(sheet_id, inscripciones_tab_name)
 
         # Buscar la inscripción específica
-        inscripcion = df[df['numero_inscripcion'] == numero_inscripcion]
+        df['numero_inscripcion_clean'] = df['numero_inscripcion'].apply(safe_str_id)
+        inscripcion = df[df['numero_inscripcion_clean'] == safe_str_id(numero_inscripcion)]
 
         if inscripcion.empty:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Inscripción {numero_inscripcion} no encontrada.")

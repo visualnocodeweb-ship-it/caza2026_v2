@@ -128,7 +128,7 @@ const Reses = () => {
         const resId = res.ID;
         const amount = paymentAmounts[resId];
 
-        if (!amount) {
+        if (amount === undefined || amount === null || amount === "") {
             alert("Por favor, ingrese un monto para el cobro.");
             return;
         }
@@ -189,7 +189,7 @@ const Reses = () => {
         try {
             const resId = res.ID;
             const amount = paymentAmounts[resId];
-            if (!amount) {
+            if (amount === undefined || amount === null || amount === "") {
                 alert("Por favor, ingrese un monto para guardar.");
                 return;
             }
