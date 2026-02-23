@@ -560,12 +560,22 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
 
         # Nombres de acciones para el historial
         for res in paginated_data:
-            res_id = res.get('ID')
+            res_id_raw = res.get('ID')
+            res_id = None
+            if res_id_raw is not None and str(res_id_raw).strip() != '':
+                # If pandas read it as float, safe cast it to avoid '1.0' string
+                if isinstance(res_id_raw, float) and res_id_raw.is_integer():
+                    res_id = str(int(res_id_raw))
+                else:
+                    res_id = str(res_id_raw).strip()
             
             # Asociar Docx
             if res_id and res_id in docx_dict:
                 res['docx_link'] = docx_dict[res_id]['webViewLink']
                 res['docx_id'] = docx_dict[res_id]['id']
+            # Reasignar res['ID'] unificado para el frontend (opcional pero seguro)
+            if res_id:
+                res['ID'] = res_id
 
             # Enriquecer con estados de envío
             if res_id:
