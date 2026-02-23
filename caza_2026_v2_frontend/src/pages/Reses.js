@@ -144,7 +144,7 @@ const Reses = () => {
             await sendResesPayment({
                 res_id: resId,
                 email: res.Email,
-                amount: amount
+                amount: amount.toString()
             });
             alert(`Solicitud de cobro por $${amount} enviada a ${res.Email}`);
             updateSentStatusLocally(resId, 'cobro');
