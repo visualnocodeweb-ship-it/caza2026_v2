@@ -22,6 +22,15 @@ const Navbar = () => {
       <NavLink to="/pagos" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
         Pagos Realizados
       </NavLink>
+      <a
+        href="https://mapas-caza-frontend.onrender.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="nav-item maps-nav-link"
+        style={{ textDecoration: 'none' }}
+      >
+        Maps
+      </a>
       <button
         onClick={logout}
         className="nav-item"
@@ -31,7 +40,7 @@ const Navbar = () => {
           cursor: 'pointer',
           color: 'inherit',
           font: 'inherit',
-          marginLeft: 'auto'
+          marginLeft: '20px'
         }}
       >
         Cerrar Sesión
