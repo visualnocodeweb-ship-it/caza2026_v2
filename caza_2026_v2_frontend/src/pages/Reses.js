@@ -269,7 +269,7 @@ const Reses = () => {
             {filteredReses.length > 0 ? (
                 <div className="inscripciones-list">
                     {filteredReses.map((item, index) => (
-                        <div key={item.ID || index} className="inscripcion-card" data-expanded={!!expandedStates[index]}>
+                        <div key={item.ID || index} className={`inscripcion-card ${item.is_paid ? 'pagado-bg' : ''}`} data-expanded={!!expandedStates[index]}>
                             <div className="card-header" onClick={() => toggleExpand(index)}>
                                 <div className="header-info">
                                     <h3>{item['Nombre y Apellido'] || 'Nombre no disponible'} - {item['Especie']} ({item['Cantidad de reses']})</h3>
