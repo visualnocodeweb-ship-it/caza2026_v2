@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from .routers import fiscalizador
 import os
 import datetime
 import pandas as pd # Import pandas for data manipulation
@@ -149,7 +150,8 @@ async def shutdown():
 origins = [
     "http://localhost:3000", "http://127.0.0.1:3000",
     "https://caza2026-frontend.onrender.com",
-    # Agrega aquí cualquier otro dominio donde se despliegue tu frontend
+    "http://localhost:5174",                             # Fiscalizador — dev local
+    "https://fiscalizacion-caza-2026.onrender.com",     # Fiscalizador — producción
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -158,6 +160,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Routers adicionales ---
+app.include_router(fiscalizador.router)
 
 # --- No-Cache Middleware for API ---
 @app.middleware("http")
@@ -650,7 +655,8 @@ class SendResesGuiaRequest(BaseModel):
 
 @app.post("/api/send-reses-guia", response_model=Dict[str, str])
 async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
-    await log_activity('INFO', 'send_reses_guia_request', f'Solicitud para enviar guía a: {request_data.email} para res: {request_data.res_id}')
+    res_id_clean = safe_str_id(request_data.res_id)
+    await log_activity('INFO', 'send_reses_guia_request', f'Solicitud para enviar guía a: {request_data.email} para res: {res_id_clean}')
     try:
         # 1. Exportar Docx a PDF
         pdf_content = drive_services.export_file_as_pdf(request_data.docx_id)
@@ -719,7 +725,8 @@ class SendResesPaymentRequest(BaseModel):
 
 @app.post("/api/send-reses-payment", response_model=Dict[str, str])
 async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
-    await log_activity('INFO', 'send_reses_payment_request', f'Solicitud para enviar cobro a: {request_data.email} para res: {request_data.res_id} por ${request_data.amount}')
+    res_id_clean = safe_str_id(request_data.res_id)
+    await log_activity('INFO', 'send_reses_payment_request', f'Solicitud para enviar cobro a: {request_data.email} para res: {res_id_clean} por ${request_data.amount}')
     try:
         sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
         subject = f"Pago de Guía de Reses - {request_data.res_id}"
@@ -755,7 +762,7 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
 
         # 1. Registrar en sent_items (para etiquetas)
         query_sent = sent_items.insert().values(
-            item_id=request_data.res_id,
+            item_id=res_id_clean,
             item_type='reses',
             sent_type='cobro',
             date_sent=datetime.datetime.now(datetime.timezone.utc)
@@ -763,19 +770,19 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
         await database.execute(query_sent)
 
         # 2. Guardar monto de forma permanente (upsert)
-        check_query = select(reses_details).where(reses_details.c.res_id == request_data.res_id)
+        check_query = select(reses_details).where(reses_details.c.res_id == res_id_clean)
         existing = await database.fetch_one(check_query)
         
         amount_val = float(request_data.amount)
         if existing:
-            update_query = reses_details.update().where(reses_details.c.res_id == request_data.res_id).values(amount=amount_val)
+            update_query = reses_details.update().where(reses_details.c.res_id == res_id_clean).values(amount=amount_val)
             await database.execute(update_query)
         else:
-            insert_query = reses_details.insert().values(res_id=request_data.res_id, amount=amount_val)
+            insert_query = reses_details.insert().values(res_id=res_id_clean, amount=amount_val)
             await database.execute(insert_query)
 
         # 3. Historial permanente
-        await log_activity('INFO', f'Reses History: {request_data.res_id}', f'[{request_data.res_id}] - Se envió cobro por ${request_data.amount} a {request_data.email}')
+        await log_activity('INFO', f'Reses History: {res_id_clean}', f'[{res_id_clean}] - Se envió cobro por ${request_data.amount} a {request_data.email}')
 
         await log_activity('INFO', 'send_reses_payment_success', f'Cobro enviado exitosamente a {request_data.email} por ${request_data.amount}')
         return {"status": "success", "message": "Cobro enviado exitosamente"}
@@ -792,15 +799,16 @@ class SendResesActionRequest(BaseModel):
 
 @app.post("/api/reses/log-action", response_model=Dict[str, str])
 async def log_reses_action_endpoint(request_data: SendResesActionRequest):
+    res_id_clean = safe_str_id(request_data.res_id)
     try:
         # 1. Registrar Historial (solo si hay res_id, si no, log general)
-        log_event = f"Reses History: {request_data.res_id}" if request_data.res_id else "Reses Action (No ID)"
-        log_details = f"[{request_data.res_id}] - {request_data.action}" if request_data.res_id else request_data.action
+        log_event = f"Reses History: {res_id_clean}" if res_id_clean else "Reses Action (No ID)"
+        log_details = f"[{res_id_clean}] - {request_data.action}" if res_id_clean else request_data.action
         await log_activity('INFO', log_event, log_details)
         
         # 2. Guardar monto e is_paid solo si se proporcionó un res_id válido
-        if request_data.res_id and (request_data.amount is not None or request_data.is_paid is not None):
-            check_query = select(reses_details).where(reses_details.c.res_id == request_data.res_id)
+        if res_id_clean and (request_data.amount is not None or request_data.is_paid is not None):
+            check_query = select(reses_details).where(reses_details.c.res_id == res_id_clean)
             existing = await database.fetch_one(check_query)
             
             updates = {}
@@ -814,11 +822,11 @@ async def log_reses_action_endpoint(request_data: SendResesActionRequest):
 
             if existing:
                 if updates:
-                    update_query = reses_details.update().where(reses_details.c.res_id == request_data.res_id).values(**updates)
+                    update_query = reses_details.update().where(reses_details.c.res_id == res_id_clean).values(**updates)
                     await database.execute(update_query)
             else:
                 if updates:
-                    insert_query = reses_details.insert().values(res_id=request_data.res_id, **updates)
+                    insert_query = reses_details.insert().values(res_id=res_id_clean, **updates)
                     await database.execute(insert_query)
                 
         return {"status": "success", "message": "Acción registrada y datos actualizados"}
@@ -1425,7 +1433,8 @@ async def log_sent_item_endpoint(item_data: SentItemEntry):
 
 @app.post("/api/send-payment-link", response_model=Dict[str, str])
 async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
-    await log_activity('INFO', 'send_payment_link_request', f'Solicitud para enviar link de pago a: {request_data.email} para inscripción: {request_data.inscription_id}')
+    inscription_id_clean = safe_str_id(request_data.inscription_id)
+    await log_activity('INFO', 'send_payment_link_request', f'Solicitud para enviar link de pago a: {request_data.email} para inscripción: {inscription_id_clean}')
     try:
         # Leer la pestaña de precios desde Google Sheets
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
@@ -1455,9 +1464,9 @@ async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
 
         # Crear preferencia de pago en MercadoPago
         payment_result = mercadopago_services.create_payment_preference(
-            title=f"Inscripción {tipo_establecimiento} - {request_data.inscription_id}",
+            title=f"Inscripción {tipo_establecimiento} - {inscription_id_clean}",
             price=precio,
-            external_reference=request_data.inscription_id,
+            external_reference=inscription_id_clean,
             payer_email=request_data.email
         )
 
@@ -1632,7 +1641,8 @@ async def view_credential_endpoint(numero_inscripcion: str):
 
 @app.post("/api/send-permiso-payment-link", response_model=Dict[str, str])
 async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLinkRequest):
-    await log_activity('INFO', 'send_permiso_payment_link_request', f'Solicitud para enviar link de pago de permiso a: {request_data.email} para permiso: {request_data.permiso_id}')
+    permiso_id_clean = safe_str_id(request_data.permiso_id)
+    await log_activity('INFO', 'send_permiso_payment_link_request', f'Solicitud para enviar link de pago de permiso a: {request_data.email} para permiso: {permiso_id_clean}')
     try:
         # Leer la pestaña de precios desde Google Sheets
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
@@ -1690,9 +1700,9 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
 
         # Crear preferencia de pago en MercadoPago
         payment_result = mercadopago_services.create_payment_preference(
-            title=f"Permiso de Caza - {categoria} - {request_data.permiso_id}",
+            title=f"Permiso de Caza - {categoria} - {permiso_id_clean}",
             price=precio,
-            external_reference=request_data.permiso_id,
+            external_reference=permiso_id_clean,
             payer_email=request_data.email
         )
 
@@ -1758,8 +1768,10 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
         pdf_id = None
         pdf_filename = None
 
+        permiso_id_clean = safe_str_id(request_data.permiso_id)
+
         for pdf in pdfs:
-            if 'name' in pdf and pdf['name'].replace('.pdf', '') == request_data.permiso_id:
+            if 'name' in pdf and safe_str_id(pdf['name'].replace('.pdf', '')) == permiso_id_clean:
                 pdf_id = pdf.get('id')
                 pdf_filename = pdf.get('name')
                 break
