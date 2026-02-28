@@ -877,6 +877,61 @@ async def get_reses_stats():
         await log_activity('ERROR', 'get_reses_stats_failed', str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/reses/pagos", response_model=Dict[str, Any])
+async def get_reses_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
+    """Lista detallada de reses marcadas como pagadas."""
+    await log_activity('INFO', 'get_reses_pagos_request', f'Solicitud de pagos de reses - Página: {page}, Límite: {limit}')
+    try:
+        # 1. Obtener todos los detalles de pago de la DB donde is_paid es True
+        query = select(reses_details).where(reses_details.c.is_paid == True)
+        db_records = await database.fetch_all(query)
+        db_dict = {safe_str_id(r['res_id']): dict(r) for r in db_records if safe_str_id(r['res_id'])}
+
+        if not db_dict:
+            return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        # 2. Leer datos de Google Sheets para enriquecer (Nombre, Especie, etc.)
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        df = sheets_services.read_sheet_data(sheet_id, "reses")
+        
+        if df.empty:
+            return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        enriched_data = []
+        for _, row in df.iterrows():
+            res_id = safe_str_id(row.get('ID'))
+            if res_id and res_id in db_dict:
+                item = db_dict[res_id]
+                enriched_data.append({
+                    "res_id": res_id,
+                    "nombre": row.get('Nombre y Apellido', 'N/A'),
+                    "dni": row.get('DNI', 'N/A'),
+                    "especie": row.get('Especie', 'N/A'),
+                    "cantidad": row.get('Cantidad de reses', 'N/A'),
+                    "amount": item.get('amount', 0),
+                    "is_paid": True,
+                    "date": row.get('Fecha', 'N/A')
+                })
+
+        # Ordenar por fecha (asumiendo que los últimos están al final del DF)
+        enriched_data.reverse()
+
+        total_records = len(enriched_data)
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+        offset = (page - 1) * limit
+        paginated_data = enriched_data[offset:offset + limit]
+
+        return {
+            "data": paginated_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_reses_pagos_failed', str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/permisos", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def create_permiso(permiso: PermisoCreate):
     await log_activity('INFO', 'create_permiso_request', f'Solicitud para crear permiso para: {permiso.email_solicitante}')
