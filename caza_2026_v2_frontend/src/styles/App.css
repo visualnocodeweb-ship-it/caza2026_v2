@@ -282,10 +282,19 @@ body {
   border: 1px solid rgba(153, 27, 27, 0.3);
 }
 
-/* Paid Highlight */
+/* Status Card Backgrounds (Vibrant Web 3.0) */
 .inscripcion-card.pagado-bg {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(220, 252, 231, 0.4) 100%);
-  border-color: rgba(34, 197, 94, 0.2);
+  background: linear-gradient(135deg, rgba(220, 252, 231, 0.95) 0%, rgba(187, 247, 208, 0.8) 100%);
+  border: 1px solid rgba(22, 101, 52, 0.3);
+  box-shadow: 0 4px 12px rgba(22, 101, 52, 0.1);
+}
+
+.inscripcion-card.pendiente-bg {
+  background: linear-gradient(135deg, rgba(254, 226, 226, 0.95) 0%, rgba(FECACA, 0.8) 100%);
+  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+  /* Solider gradients for visibility */
+  border: 1px solid rgba(153, 27, 27, 0.3);
+  box-shadow: 0 4px 12px rgba(153, 27, 27, 0.1);
 }
 
 /* --- Dashboard / Stats --- */

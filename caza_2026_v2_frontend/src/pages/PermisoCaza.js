@@ -171,7 +171,7 @@ const PermisoCaza = () => {
       {filteredPermisos.length > 0 ? (
         <div className="inscripciones-list">
           {filteredPermisos.map((permiso, index) => (
-            <div key={permiso.ID || index} className={`inscripcion-card ${permiso['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : ''}`} data-expanded={!!expandedStates[index]}>
+            <div key={permiso.ID || index} className={`inscripcion-card ${permiso['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : 'pendiente-bg'}`} data-expanded={!!expandedStates[index]}>
               <div className="card-header" onClick={() => toggleExpand(index)}>
                 <h3>{permiso['Nombre y Apellido'] || 'Nombre no disponible'}</h3>
                 <span className="expand-toggle">▼</span>

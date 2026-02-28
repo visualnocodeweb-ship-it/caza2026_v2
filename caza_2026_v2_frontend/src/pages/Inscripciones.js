@@ -216,7 +216,7 @@ const Inscripciones = () => {
       {filteredInscripciones.length > 0 ? (
         <div className="inscripciones-list">
           {filteredInscripciones.map((inscripcion, index) => (
-            <div key={inscripcion.numero_inscripcion || index} className={`inscripcion-card ${inscripcion['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : ''}`} data-expanded={!!expandedStates[index]}>
+            <div key={inscripcion.numero_inscripcion || index} className={`inscripcion-card ${inscripcion['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : 'pendiente-bg'}`} data-expanded={!!expandedStates[index]}>
               <div className="card-header" onClick={() => toggleExpand(index)}>
                 <h3>{inscripcion.nombre_establecimiento || 'Nombre no disponible'}</h3>
                 <span className="expand-toggle">▼</span>
