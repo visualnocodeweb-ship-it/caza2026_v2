@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPayments, fetchCobrosEnviados, fetchPermisoCobrosEnviados } from '../utils/api';
+import { fetchPayments, fetchCobrosEnviados, fetchPermisoCobrosEnviados, fetchResesPagos } from '../utils/api';
 import Logs from './Logs'; // Import the new Logs component
 import './PagosRealizados.css';
 import '../styles/Responsive.css';
@@ -41,6 +41,13 @@ const PagosRealizados = () => {
   const [errorPermisoCobros, setErrorPermisoCobros] = useState(null);
   const [permisoCobrosPage, setPermisoCobrosPage] = useState(1);
   const [permisoCobrosTotalPages, setPermisoCobrosTotalPages] = useState(1);
+
+  // State for "Pagos de Reses"
+  const [resesPayments, setResesPayments] = useState([]);
+  const [loadingReses, setLoadingReses] = useState(true);
+  const [errorReses, setErrorReses] = useState(null);
+  const [resesPage, setResesPage] = useState(1);
+  const [resesTotalPages, setResesTotalPages] = useState(1);
 
   const [limit] = useState(10); // Common limit for all
 
@@ -100,6 +107,25 @@ const PagosRealizados = () => {
       getPermisoCobros();
     }
   }, [view, permisoCobrosPage, limit]);
+
+  useEffect(() => {
+    const getResesPayments = async () => {
+      setLoadingReses(true);
+      try {
+        const data = await fetchResesPagos(resesPage, limit);
+        setResesPayments(data.data);
+        setResesTotalPages(data.total_pages);
+      } catch (err) {
+        setErrorReses("Error al cargar los pagos de reses: " + err.message);
+      } finally {
+        setLoadingReses(false);
+      }
+    };
+
+    if (view === 'reses') {
+      getResesPayments();
+    }
+  }, [view, resesPage, limit]);
 
   const renderPaymentsTable = () => {
     if (loadingPayments) return <div className="container">Cargando pagos...</div>;
@@ -239,6 +265,55 @@ const PagosRealizados = () => {
     );
   };
 
+  const renderResesPaymentsTable = () => {
+    if (loadingReses) return <div className="container">Cargando pagos de reses...</div>;
+    if (errorReses) return <div className="container error-message">{errorReses}</div>;
+    return (
+      <>
+        {resesPayments.length === 0 ? (
+          <p>No se encontraron pagos de reses marcados como "Pagado".</p>
+        ) : (
+          <div className="table-responsive">
+            <table className="payments-table">
+              <thead>
+                <tr>
+                  <th>ID Res</th>
+                  <th>Cazador / Empresa</th>
+                  <th>Especie</th>
+                  <th>Monto Pagado</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resesPayments.map((p) => (
+                  <tr key={p.res_id}>
+                    <td style={{ fontWeight: 'bold' }}>{p.res_id}</td>
+                    <td>{p.nombre}</td>
+                    <td>{p.especie} ({p.cantidad})</td>
+                    <td style={{ color: '#166534', fontWeight: 'bold' }}>
+                      ${p.amount ? p.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '0.00'}
+                    </td>
+                    <td>{p.date}</td>
+                    <td>{formatStatus('approved')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="pagination-controls">
+              <button onClick={() => setResesPage(p => Math.max(p - 1, 1))} disabled={resesPage === 1}>
+                Anterior
+              </button>
+              <span>Página {resesPage} de {resesTotalPages}</span>
+              <button onClick={() => setResesPage(p => Math.min(p + 1, resesTotalPages))} disabled={resesPage === resesTotalPages}>
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="pagos-container">
@@ -251,6 +326,12 @@ const PagosRealizados = () => {
             Pagos Realizados
           </button>
           <button
+            onClick={() => setView('reses')}
+            className={`nav-item ${view === 'reses' ? 'active' : ''}`}
+          >
+            Pagos de Reses
+          </button>
+          <button
             onClick={() => setView('logs')}
             className={`nav-item ${view === 'logs' ? 'active' : ''}`}
           >
@@ -261,10 +342,12 @@ const PagosRealizados = () => {
 
       <div className="glass-card" style={{ padding: '2rem' }}>
         <h2 className="app-title" style={{ marginBottom: '2rem', fontSize: '1.5rem', textAlign: 'center' }}>
-          {view === 'realizados' ? 'Historial de Pagos' : 'Logs del Sistema'}
+          {view === 'realizados' ? 'Historial de Pagos' :
+            view === 'reses' ? 'Pagos de Reses' : 'Logs del Sistema'}
         </h2>
 
-        {view === 'realizados' ? renderPaymentsTable() : <Logs />}
+        {view === 'realizados' ? renderPaymentsTable() :
+          view === 'reses' ? renderResesPaymentsTable() : <Logs />}
       </div>
     </div>
   );

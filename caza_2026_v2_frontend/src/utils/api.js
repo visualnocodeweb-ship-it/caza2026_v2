@@ -172,6 +172,19 @@ export const fetchPayments = async (page = 1, limit = 10) => {
   }
 };
 
+export const fetchResesPagos = async (page = 1, limit = 10) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reses/pagos?page=${page}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching reses payments:", error);
+    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+  }
+};
+
 // Add more API functions as needed
 
 export const linkData = async () => {
