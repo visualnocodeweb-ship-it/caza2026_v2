@@ -33,15 +33,8 @@ const Navbar = () => {
       </a>
       <button
         onClick={logout}
-        className="nav-item"
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: 'inherit',
-          font: 'inherit',
-          marginLeft: '20px'
-        }}
+        className="nav-item logout-btn"
+        style={{ marginLeft: 'auto' }}
       >
         Cerrar Sesión
       </button>

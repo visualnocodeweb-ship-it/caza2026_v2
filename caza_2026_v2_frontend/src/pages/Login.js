@@ -18,97 +18,68 @@ const Login = () => {
     };
 
     return (
-        <div style={{
+        <div className="login-page-wrapper" style={{
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            height: '100vh',
-            backgroundColor: '#f0f2f5'
+            height: '80vh',
         }}>
-            <div style={{
-                padding: '2rem',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            <div className="glass-card" style={{
+                padding: '2.5rem',
                 width: '100%',
-                maxWidth: '400px'
+                maxWidth: '420px',
+                textAlign: 'center'
             }}>
-                <h2 style={{
-                    color: '#2E5661',
-                    textAlign: 'center',
-                    marginBottom: '1.5rem'
-                }}>Ingreso al Sistema</h2>
+                <h2 className="app-title" style={{ marginBottom: '2rem', fontSize: '1.5rem' }}>Acceso al Sistema</h2>
 
                 {error && (
                     <div style={{
-                        backgroundColor: '#FEE2E2',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
                         color: '#B91C1C',
-                        padding: '0.75rem',
-                        borderRadius: '4px',
-                        marginBottom: '1rem',
-                        fontSize: '0.9rem'
+                        padding: '0.8rem',
+                        borderRadius: 'var(--radius-sm)',
+                        marginBottom: '1.5rem',
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        border: '1px solid rgba(239, 68, 68, 0.2)'
                     }}>
                         {error}
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: '#4B5563', fontSize: '0.9rem', fontWeight: '500' }}>Usuario</label>
+                <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
+                    <div style={{ marginBottom: '1.25rem' }}>
+                        <label className="detail-label" style={{ display: 'block', marginBottom: '0.5rem' }}>Usuario</label>
                         <input
                             type="text"
+                            className="search-input"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                border: '1px solid #D1D5DB',
-                                borderRadius: '6px',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                boxSizing: 'border-box'
-                            }}
-                            placeholder="Ej. Karen"
+                            placeholder="Usuario"
+                            style={{ maxWidth: '100%' }}
                             required
                         />
                     </div>
 
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: '#4B5563', fontSize: '0.9rem', fontWeight: '500' }}>Contraseña</label>
+                    <div style={{ marginBottom: '2rem' }}>
+                        <label className="detail-label" style={{ display: 'block', marginBottom: '0.5rem' }}>Contraseña</label>
                         <input
                             type="password"
+                            className="search-input"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                border: '1px solid #D1D5DB',
-                                borderRadius: '6px',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                boxSizing: 'border-box'
-                            }}
                             placeholder="••••••••"
+                            style={{ maxWidth: '100%' }}
                             required
                         />
                     </div>
 
                     <button
                         type="submit"
-                        style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            backgroundColor: '#2E5661',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '1rem',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.2s'
-                        }}
+                        className="action-button btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', padding: '1rem' }}
                     >
-                        Ingresar
+                        Ingresar al Tablero
                     </button>
                 </form>
             </div>

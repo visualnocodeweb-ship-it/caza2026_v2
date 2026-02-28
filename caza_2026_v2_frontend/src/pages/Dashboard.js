@@ -7,41 +7,34 @@ const Dashboard = () => {
   return (
     <div>
       <h2>Dashboard</h2>
-      <nav className="dashboard-subnav">
-        <NavLink
-          to="/dashboard/inscripciones"
-          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
-        >
-          Inscripciones
-        </NavLink>
-        <NavLink
-          to="/dashboard/permisos"
-          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
-        >
-          Permisos
-        </NavLink>
-        <NavLink
-          to="/dashboard/recaudaciones"
-          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
-        >
-          Recaudaciones
-        </NavLink>
-        <NavLink
-          to="/dashboard/reses"
-          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
-        >
-          Reses
-        </NavLink>
-        {/* Futuras pestañas del dashboard irán aquí */}
-        {/* 
-        <NavLink 
-          to="/dashboard/pagos" 
-          className={({ isActive }) => "subnav-item" + (isActive ? " active" : "")}
-        >
-          Pagos
-        </NavLink> 
-        */}
-      </nav>
+      <div className="toolbar" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
+        <nav className="navbar" style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.5)' }}>
+          <NavLink
+            to="/dashboard/inscripciones"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            Inscripciones
+          </NavLink>
+          <NavLink
+            to="/dashboard/permisos"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            Permisos
+          </NavLink>
+          <NavLink
+            to="/dashboard/recaudaciones"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            Recaudaciones
+          </NavLink>
+          <NavLink
+            to="/dashboard/reses"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            Reses
+          </NavLink>
+        </nav>
+      </div>
       <div className="dashboard-content">
         <Outlet />
       </div>

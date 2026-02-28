@@ -34,7 +34,7 @@ const PagosRealizados = () => {
   const [errorCobros, setErrorCobros] = useState(null);
   const [cobrosPage, setCobrosPage] = useState(1);
   const [cobrosTotalPages, setCobrosTotalPages] = useState(1);
-  
+
   // State for "Permisos Cobros Enviados"
   const [sentPermisoCobros, setSentPermisoCobros] = useState([]);
   const [loadingPermisoCobros, setLoadingPermisoCobros] = useState(true);
@@ -150,7 +150,7 @@ const PagosRealizados = () => {
       </>
     );
   };
-  
+
   const renderCobrosTable = () => {
     if (loadingCobros) return <div className="container">Cargando cobros enviados...</div>;
     if (errorCobros) return <div className="container error-message">{errorCobros}</div>;
@@ -181,13 +181,13 @@ const PagosRealizados = () => {
               </tbody>
             </table>
             <div className="pagination-controls">
-                <button onClick={() => setCobrosPage(p => Math.max(p - 1, 1))} disabled={cobrosPage === 1}>
-                    Anterior
-                </button>
-                <span>Página {cobrosPage} de {cobrosTotalPages}</span>
-                <button onClick={() => setCobrosPage(p => Math.min(p + 1, cobrosTotalPages))} disabled={cobrosPage === cobrosTotalPages}>
-                    Siguiente
-                </button>
+              <button onClick={() => setCobrosPage(p => Math.max(p - 1, 1))} disabled={cobrosPage === 1}>
+                Anterior
+              </button>
+              <span>Página {cobrosPage} de {cobrosTotalPages}</span>
+              <button onClick={() => setCobrosPage(p => Math.min(p + 1, cobrosTotalPages))} disabled={cobrosPage === cobrosTotalPages}>
+                Siguiente
+              </button>
             </div>
           </div>
         )}
@@ -225,13 +225,13 @@ const PagosRealizados = () => {
               </tbody>
             </table>
             <div className="pagination-controls">
-                <button onClick={() => setPermisoCobrosPage(p => Math.max(p - 1, 1))} disabled={permisoCobrosPage === 1}>
-                    Anterior
-                </button>
-                <span>Página {permisoCobrosPage} de {permisoCobrosTotalPages}</span>
-                <button onClick={() => setPermisoCobrosPage(p => Math.min(p + 1, permisoCobrosTotalPages))} disabled={permisoCobrosPage === permisoCobrosTotalPages}>
-                    Siguiente
-                </button>
+              <button onClick={() => setPermisoCobrosPage(p => Math.max(p - 1, 1))} disabled={permisoCobrosPage === 1}>
+                Anterior
+              </button>
+              <span>Página {permisoCobrosPage} de {permisoCobrosTotalPages}</span>
+              <button onClick={() => setPermisoCobrosPage(p => Math.min(p + 1, permisoCobrosTotalPages))} disabled={permisoCobrosPage === permisoCobrosTotalPages}>
+                Siguiente
+              </button>
             </div>
           </div>
         )}
@@ -241,19 +241,31 @@ const PagosRealizados = () => {
 
 
   return (
-    <div className="container">
-      <div className="view-toggle">
-        <button onClick={() => setView('realizados')} className={view === 'realizados' ? 'active' : ''}>
-          Pagos Realizados
-        </button>
-        <button onClick={() => setView('logs')} className={view === 'logs' ? 'active' : ''}>
-          Logs
-        </button>
+    <div className="pagos-container">
+      <div className="toolbar" style={{ justifyContent: 'center', marginBottom: '3rem' }}>
+        <div className="navbar" style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.5)' }}>
+          <button
+            onClick={() => setView('realizados')}
+            className={`nav-item ${view === 'realizados' ? 'active' : ''}`}
+          >
+            Pagos Realizados
+          </button>
+          <button
+            onClick={() => setView('logs')}
+            className={`nav-item ${view === 'logs' ? 'active' : ''}`}
+          >
+            Registro de Actividad (Logs)
+          </button>
+        </div>
       </div>
-      <h1 className="title">
-        {view === 'realizados' ? 'Pagos Realizados' : 'Registro de Actividad'}
-      </h1>
-      {view === 'realizados' ? renderPaymentsTable() : <Logs />}
+
+      <div className="glass-card" style={{ padding: '2rem' }}>
+        <h2 className="app-title" style={{ marginBottom: '2rem', fontSize: '1.5rem', textAlign: 'center' }}>
+          {view === 'realizados' ? 'Historial de Pagos' : 'Logs del Sistema'}
+        </h2>
+
+        {view === 'realizados' ? renderPaymentsTable() : <Logs />}
+      </div>
     </div>
   );
 };

@@ -179,13 +179,42 @@ const PermisoCaza = () => {
 
               {expandedStates[index] && (
                 <div className="card-details">
-                  <p><strong>Email:</strong> {permiso['Dirección de correo electrónico'] || 'N/A'}</p>
-                  <p><strong>Categoría:</strong> {permiso['Categoría'] || 'N/A'}</p>
-                  <p><strong>ACM:</strong> {permiso['ACM'] || 'N/A'}</p>
-                  <p><strong>Celular:</strong> {permiso.WhatsApp ? <a href={`https://wa.me/${permiso.WhatsApp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-button"><i className="fab fa-whatsapp"></i> {permiso.WhatsApp}</a> : 'N/A'}</p>
-                  <p><strong>Fecha:</strong> {formatDate(permiso.Fecha)}</p>
-                  <p><strong>Estado de Cobro:</strong> {permiso['Estado de Cobro Enviado'] || 'No Enviado'}</p>
-                  <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(permiso['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{permiso['Estado de Pago'] || 'Pendiente'}</span></p>
+                  <div className="detail-item">
+                    <span className="detail-label">Email</span>
+                    <span className="detail-value">{permiso['Dirección de correo electrónico'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Categoría</span>
+                    <span className="detail-value">{permiso['Categoría'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">ACM</span>
+                    <span className="detail-value">{permiso['ACM'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Celular</span>
+                    <span className="detail-value">
+                      {permiso.WhatsApp ? (
+                        <a href={`https://wa.me/${permiso.WhatsApp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-link">
+                          <i className="fab fa-whatsapp"></i> {permiso.WhatsApp}
+                        </a>
+                      ) : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Fecha</span>
+                    <span className="detail-value">{formatDate(permiso.Fecha)}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Estado de Cobro</span>
+                    <span className="detail-value">{permiso['Estado de Cobro Enviado'] || 'No Enviado'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Estado del Pago</span>
+                    <span className={`status-tag status-${(permiso['Estado de Pago'] || 'pendiente').toLowerCase()}`}>
+                      {permiso['Estado de Pago'] || 'Pendiente'}
+                    </span>
+                  </div>
 
                   <div className="action-buttons">
                     {permiso.pdf_link && (
@@ -220,8 +249,8 @@ const PermisoCaza = () => {
                   </div>
                   <div className="sent-status-container">
                     {permiso.sent_statuses && permiso.sent_statuses.length > 0 && (
-                      <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                        Enviado: {permiso.sent_statuses.join(', ')}
+                      <p style={{ fontSize: '10px', color: '#64748B', margin: '5px 0 0', fontWeight: 'bold' }}>
+                        ENVIADO: {permiso.sent_statuses.join(', ').toUpperCase()}
                       </p>
                     )}
                   </div>

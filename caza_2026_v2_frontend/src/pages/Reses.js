@@ -287,35 +287,32 @@ const Reses = () => {
                             {expandedStates[index] && (
                                 <div className="card-details">
                                     <div className="details-grid">
-                                        <p><strong>ID:</strong> {item['ID'] || 'N/A'}</p>
-                                        <p><strong>Fecha:</strong> {formatDate(item['Fecha'])}</p>
-                                        <p><strong>DNI:</strong> {item['DNI'] || 'N/A'}</p>
-                                        <p><strong>Domicilio:</strong> {item['Domicilio. Ciudad. Provincia'] || 'N/A'}</p>
-                                        <p><strong>Responsable:</strong> {item['Responable del A.C.M / Criadero'] || 'N/A'}</p>
-                                        <p><strong>Cantidad:</strong> {item['Cantidad de reses'] || 'N/A'}</p>
-                                        <p><strong>Especie:</strong> {item['Especie'] || 'N/A'}</p>
-                                        <p><strong>Sexo:</strong> {item['Sexo'] || 'N/A'}</p>
-                                        <p><strong>Precinto ACM:</strong> {item['Número Precinto (A.C.M)'] || 'N/A'}</p>
-                                        <p><strong>Remitido a:</strong> {item['Remitido a '] || 'N/A'}</p>
-                                        <p><strong>Domicilio Remitente:</strong> {item['Domicilio remitente'] || 'N/A'}</p>
-                                        <p><strong>Ciudad Remitente:</strong> {item['Ciudad remitente'] || 'N/A'}</p>
-                                        <p><strong>Provincia Remitente:</strong> {item['Provincia remitente'] || 'N/A'}</p>
-                                        <p><strong>Destino a:</strong> {item['Destino a...'] || 'N/A'}</p>
-                                        <p><strong>Transporte:</strong> {item['Medio de transporte'] || 'N/A'}</p>
-                                        <p><strong>Patente:</strong> {item['Patente Número'] || 'N/A'}</p>
-                                        <p><strong>Email:</strong> {item['Email'] || 'N/A'}</p>
+                                        <p><strong>ID</strong> {item['ID'] || 'N/A'}</p>
+                                        <p><strong>Fecha</strong> {formatDate(item['Fecha'])}</p>
+                                        <p><strong>DNI</strong> {item['DNI'] || 'N/A'}</p>
+                                        <p><strong>Domicilio</strong> {item['Domicilio. Ciudad. Provincia'] || 'N/A'}</p>
+                                        <p><strong>Responsable</strong> {item['Responable del A.C.M / Criadero'] || 'N/A'}</p>
+                                        <p><strong>Cantidad</strong> {item['Cantidad de reses'] || 'N/A'}</p>
+                                        <p><strong>Especie</strong> {item['Especie'] || 'N/A'}</p>
+                                        <p><strong>Sexo</strong> {item['Sexo'] || 'N/A'}</p>
+                                        <p><strong>Precinto ACM</strong> {item['Número Precinto (A.C.M)'] || 'N/A'}</p>
+                                        <p><strong>Remitido a</strong> {item['Remitido a '] || 'N/A'}</p>
+                                        <p><strong>Domicilio Remitente</strong> {item['Domicilio remitente'] || 'N/A'}</p>
+                                        <p><strong>Ciudad Remitente</strong> {item['Ciudad remitente'] || 'N/A'}</p>
+                                        <p><strong>Provincia Remitente</strong> {item['Provincia remitente'] || 'N/A'}</p>
+                                        <p><strong>Destino a</strong> {item['Destino a...'] || 'N/A'}</p>
+                                        <p><strong>Transporte</strong> {item['Medio de transporte'] || 'N/A'}</p>
+                                        <p><strong>Patente</strong> {item['Patente Número'] || 'N/A'}</p>
+                                        <p><strong>Email</strong> {item['Email'] || 'N/A'}</p>
                                     </div>
 
-                                    <div className="reses-actions-wrapper" style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    <div className="reses-actions-wrapper">
+                                        <div className="action-section-container">
+                                            <h5 className="action-section-title">Gestión de Cobro y Guías</h5>
 
-                                        {/* Sección de Acciones: Agrupada y Clara */}
-                                        <div className="action-buttons-container" style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '8px', backgroundColor: '#fff' }}>
-                                            <h5 style={{ margin: '0 0 15px', fontSize: '15px', color: '#333', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>Acciones de Gestión</h5>
-
-                                            {/* Fila 1: Estado de Pago */}
-                                            <div className="reses-paid-toggle" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', padding: '10px', backgroundColor: '#f0f7ff', borderRadius: '6px' }}>
-                                                <span style={{ fontSize: '14px', fontWeight: '700', color: '#0056b3' }}>¿Pagado?</span>
-                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                            <div className="paid-toggle-container">
+                                                <span style={{ fontSize: '14px', fontWeight: '700', color: '#2E5661' }}>¿Pagado?</span>
+                                                <div style={{ display: 'flex', gap: '15px' }}>
                                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '14px' }}>
                                                         <input
                                                             type="radio"
@@ -335,9 +332,8 @@ const Reses = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Fila 2: Monto y Cobro */}
-                                            <div className="reses-payment-section" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                                                <label htmlFor={`amount-${item.ID}`} style={{ fontSize: '14px', fontWeight: '600' }}>Monto Cobro:</label>
+                                            <div className="reses-payment-section" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                                                <label htmlFor={`amount-${item.ID}`} style={{ fontSize: '14px', fontWeight: 'bold' }}>Monto:</label>
                                                 <input
                                                     id={`amount-${item.ID}`}
                                                     type="number"
@@ -345,12 +341,11 @@ const Reses = () => {
                                                     value={paymentAmounts[item.ID] || ''}
                                                     onChange={(e) => handleAmountChange(item.ID, e.target.value)}
                                                     className="search-input"
-                                                    style={{ width: '100px', padding: '5px 10px', margin: 0 }}
+                                                    style={{ width: '120px', margin: 0 }}
                                                 />
                                                 <button
                                                     className="action-button btn-secondary"
                                                     onClick={(e) => { e.stopPropagation(); handleSaveAmount(item); }}
-                                                    style={{ margin: 0, padding: '5px 15px', fontSize: '13px', backgroundColor: '#6c757d' }}
                                                 >
                                                     Guardar
                                                 </button>
@@ -358,23 +353,21 @@ const Reses = () => {
                                                     className={`action-button btn-primary ${sendingPayment[item.ID] ? 'btn-loading' : ''}`}
                                                     onClick={(e) => { e.stopPropagation(); handleSendPayment(item); }}
                                                     disabled={sendingPayment[item.ID]}
-                                                    style={{ margin: 0 }}
                                                 >
                                                     {sendingPayment[item.ID] ? 'Enviando...' : 'Enviar Cobro'}
                                                 </button>
                                             </div>
 
-                                            {/* Fila 3: Guías */}
-                                            <div className="guia-actions" style={{ display: 'flex', gap: '10px' }}>
+                                            <div className="guia-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                                                 {item.docx_link ? (
                                                     <button
                                                         className="action-button btn-secondary"
                                                         onClick={(e) => { e.stopPropagation(); handleEditDocx(item); }}
                                                     >
-                                                        Editar Guía (Docx)
+                                                        Editar Docx
                                                     </button>
                                                 ) : (
-                                                    <button className="action-button btn-disabled" disabled title="No se encontró el archivo en la carpeta Docx">Docx no encontrado</button>
+                                                    <button className="action-button" disabled style={{ opacity: 0.5 }}>Docx no encontrado</button>
                                                 )}
 
                                                 <button
@@ -382,19 +375,18 @@ const Reses = () => {
                                                     onClick={(e) => { e.stopPropagation(); handleSendGuia(item); }}
                                                     disabled={sendingGuia[item.ID] || !item.docx_id}
                                                 >
-                                                    {sendingGuia[item.ID] ? 'Enviando...' : 'Enviar Guía (PDF)'}
+                                                    {sendingGuia[item.ID] ? 'Enviando...' : 'Enviar Guía PDF'}
                                                 </button>
                                             </div>
                                         </div>
 
-                                        {/* Sección de Historial: Separada y al final */}
                                         {item.history && item.history.length > 0 && (
-                                            <div className="history-section" style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px dashed #ccc' }}>
-                                                <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Historial de Movimientos</h4>
-                                                <div className="history-list" style={{ maxHeight: '120px', overflowY: 'auto', borderLeft: '2px solid #ddd', paddingLeft: '10px' }}>
+                                            <div className="history-box">
+                                                <h4 className="action-section-title" style={{ fontSize: '12px', border: 'none', color: '#64748B' }}>HISTORIAL DE MOVIMIENTOS</h4>
+                                                <div className="history-list">
                                                     {item.history.map((log, lIdx) => (
-                                                        <div key={lIdx} className="history-item" style={{ fontSize: '11px', padding: '4px 0', borderBottom: '1px solid #f0f0f0', color: '#555' }}>
-                                                            <span style={{ fontWeight: '600', color: '#888', marginRight: '8px' }}>
+                                                        <div key={lIdx} className="history-item">
+                                                            <span className="history-item-date">
                                                                 {new Date(log.timestamp).toLocaleString()}:
                                                             </span>
                                                             {log.details}

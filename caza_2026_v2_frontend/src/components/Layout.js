@@ -7,7 +7,7 @@ import '../styles/App.css';
 const Layout = () => { // Remove children prop
   return (
     <div className="app-container">
-      <header className="app-header">
+      <header className="app-header glass-header">
         <div className="logo-container">
           <img src={GuardafaunaLogo} className="app-logo" alt="Guardafauna Logo" />
         </div>

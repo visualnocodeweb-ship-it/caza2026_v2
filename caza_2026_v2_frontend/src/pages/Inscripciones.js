@@ -224,11 +224,34 @@ const Inscripciones = () => {
 
               {expandedStates[index] && (
                 <div className="card-details">
-                  <p><strong>Email:</strong> {inscripcion.email || 'N/A'}</p>
-                  <p><strong>Establecimiento:</strong> {inscripcion['su establecimiento es'] || 'N/A'}</p>
-                  <p><strong>Celular:</strong> {inscripcion.celular ? <a href={`https://wa.me/${inscripcion.celular.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-button"><i className="fab fa-whatsapp"></i> {inscripcion.celular}</a> : 'N/A'}</p>
-                  <p><strong>Fecha:</strong> {formatDate(inscripcion.fecha_creacion)}</p>
-                  <p><strong>Estado del Pago:</strong> <span className={`status-pago status-${(inscripcion['Estado de Pago'] || 'pendiente').toLowerCase()}`}>{inscripcion['Estado de Pago'] || 'Pendiente'}</span></p>
+                  <div className="detail-item">
+                    <span className="detail-label">Email</span>
+                    <span className="detail-value">{inscripcion.email || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Establecimiento</span>
+                    <span className="detail-value">{inscripcion['su establecimiento es'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Celular</span>
+                    <span className="detail-value">
+                      {inscripcion.celular ? (
+                        <a href={`https://wa.me/${inscripcion.celular.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-link">
+                          <i className="fab fa-whatsapp"></i> {inscripcion.celular}
+                        </a>
+                      ) : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Fecha</span>
+                    <span className="detail-value">{formatDate(inscripcion.fecha_creacion)}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Estado del Pago</span>
+                    <span className={`status-tag status-${(inscripcion['Estado de Pago'] || 'pendiente').toLowerCase()}`}>
+                      {inscripcion['Estado de Pago'] || 'Pendiente'}
+                    </span>
+                  </div>
 
                   <div className="action-buttons">
                     {inscripcion.pdf_link && (
@@ -270,8 +293,8 @@ const Inscripciones = () => {
                   </div>
                   <div className="sent-status-container">
                     {inscripcion.sent_statuses && inscripcion.sent_statuses.length > 0 && (
-                      <p style={{ fontSize: '10px', color: '#555', margin: '5px 0 0' }}>
-                        Enviado: {inscripcion.sent_statuses.join(', ')}
+                      <p style={{ fontSize: '10px', color: '#64748B', margin: '5px 0 0', fontWeight: 'bold' }}>
+                        ENVIADO: {inscripcion.sent_statuses.join(', ').toUpperCase()}
                       </p>
                     )}
                   </div>
