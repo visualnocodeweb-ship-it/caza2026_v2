@@ -277,9 +277,9 @@ body {
 }
 
 .status-tag.status-pendiente {
-  background: #FEF2F2;
+  background: #FEE2E2;
   color: #991B1B;
-  border: 1px solid rgba(153, 27, 27, 0.2);
+  border: 1px solid rgba(153, 27, 27, 0.3);
 }
 
 /* Paid Highlight */
@@ -497,23 +497,23 @@ body {
 }
 
 .status-pending {
-  background: #FEF2F2;
+  background: #FEE2E2;
   color: #991B1B;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 800;
-  border: 1px solid rgba(153, 27, 27, 0.2);
+  border: 1px solid rgba(153, 27, 27, 0.3);
 }
 
 .status-failed {
-  background: #FEF2F2;
+  background: #FEE2E2;
   color: #991B1B;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 800;
-  border: 1px solid rgba(153, 27, 27, 0.2);
+  border: 1px solid rgba(153, 27, 27, 0.3);
 }
 
 .log-level {
