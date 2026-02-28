@@ -151,7 +151,7 @@ origins = [
     "http://localhost:3000", "http://127.0.0.1:3000",
     "https://caza2026-frontend.onrender.com",
     "http://localhost:5174",                             # Fiscalizador — dev local
-    "https://fiscalizacion-caza-2026.onrender.com",     # Fiscalizador — producción
+    "https://fiscalizador-caza-2026.onrender.com",      # Fiscalizador — producción
 ]
 app.add_middleware(
     CORSMiddleware,
