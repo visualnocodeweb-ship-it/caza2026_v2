@@ -1301,6 +1301,72 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         await log_activity('ERROR', 'get_pagos_failed', f"Error al obtener pagos: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener pagos: {e}")
 
+class ManualPaymentRequest(BaseModel):
+    inscription_id: str
+    amount: float
+    email: Optional[str] = None
+    notes: Optional[str] = None  # e.g. "Transferencia bancaria", "Efectivo"
+
+@app.post("/api/pagos/manual", response_model=Dict[str, Any])
+async def register_manual_payment(request_data: ManualPaymentRequest):
+    """
+    Registra un pago manual (transferencia, efectivo, etc.) para una inscripción.
+    Inserta un registro en la tabla 'pagos' con status='approved' y
+    actualiza el estado en Google Sheets.
+    """
+    await log_activity('INFO', 'manual_payment_request', f"Pago manual para inscripción: {request_data.inscription_id}, monto: {request_data.amount}")
+    try:
+        insc_id = safe_str_id(request_data.inscription_id)
+        if not insc_id:
+            raise HTTPException(status_code=400, detail="inscription_id inválido.")
+
+        # Verificar si ya existe un pago approved para esta inscripción
+        existing_query = select(pagos).where(
+            pagos.c.inscription_id == insc_id,
+            pagos.c.status == 'approved'
+        )
+        existing = await database.fetch_one(existing_query)
+        if existing:
+            return {"status": "already_paid", "inscription_id": insc_id, "message": "Esta inscripción ya tiene un pago aprobado."}
+
+        # Generar un payment_id único (negativo para diferenciarlo de MercadoPago)
+        import time
+        manual_payment_id = -int(time.time() * 1000) % (10**15)
+
+        # Insertar pago en la DB
+        insert_query = pagos.insert().values(
+            payment_id=manual_payment_id,
+            inscription_id=insc_id,
+            status='approved',
+            status_detail=f"manual: {request_data.notes or 'pago manual'}",
+            amount=request_data.amount,
+            email=request_data.email,
+            date_created=datetime.datetime.now(datetime.timezone.utc)
+        )
+        await database.execute(insert_query)
+
+        # Actualizar Google Sheets
+        try:
+            sheet_id = os.getenv("GOOGLE_SHEET_ID")
+            sheets_services.update_payment_status(sheet_id, "inscrip", insc_id, "Pagado")
+            await log_activity('INFO', 'manual_payment_sheets_updated', f"Sheets actualizado para {insc_id}")
+        except Exception as sheets_err:
+            await log_activity('WARNING', 'manual_payment_sheets_error', f"No se pudo actualizar Sheets: {sheets_err}")
+
+        await log_activity('INFO', 'manual_payment_registered', f"Pago manual aprobado para {insc_id} por ${request_data.amount}")
+        return {
+            "status": "ok",
+            "inscription_id": insc_id,
+            "payment_id": manual_payment_id,
+            "amount": request_data.amount,
+            "message": "Pago manual registrado exitosamente."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'manual_payment_failed', f"Error al registrar pago manual: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al registrar pago manual: {e}")
+
 @app.get("/api/stats/total-inscripciones", response_model=Dict[str, int])
 async def get_total_inscripciones():
     await log_activity('INFO', 'get_total_inscripciones_request', 'Solicitud del total de inscripciones.')
