@@ -209,17 +209,22 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
 
         # Aplicar búsqueda global si hay término
-        if search:
-            search_str = search.lower()
-            mask = df.apply(lambda row: row.astype(str).str.contains(search_str, case=False).any(), axis=1)
+        debug_search = f"Received: {search}"
+        if search and str(search).strip():
+            search_str = str(search).lower()
+            # Método más robusto para filtrar en todas las columnas
+            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
             df = df[mask]
-
+        
         total_records = len(df)
         offset = (page - 1) * limit
         total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
 
         # Aplicar paginación al DataFrame
         paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+        
+        # Debemos devolver el debug_search o algo similar para confirmar en el curl
+
 
         # Buscar PDFs de inscripciones
         inscripciones_folder_id = "1a1VEA7I5N5sMvqLQWuoDpQ3WSiayQbK9"
@@ -277,7 +282,8 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
             "total_records": total_records,
             "page": page,
             "limit": limit,
-            "total_pages": total_pages
+            "total_pages": total_pages,
+            "debug_search": debug_search if 'debug_search' in locals() else "None"
         }
     except Exception as e:
         await log_activity('ERROR', 'get_inscripciones_failed', f"Error al obtener inscripciones: {e}")
@@ -504,9 +510,11 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
 
         # Aplicar búsqueda global si hay término
-        if search:
-            search_str = search.lower()
-            mask = df.apply(lambda row: row.astype(str).str.contains(search_str, case=False).any(), axis=1)
+        debug_search = f"Received: {search}"
+        if search and str(search).strip():
+            search_str = str(search).lower()
+            # Método más robusto para filtrar en todas las columnas
+            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
             df = df[mask]
 
         total_records = len(df)
@@ -570,7 +578,8 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
             "total_records": total_records,
             "page": page,
             "limit": limit,
-            "total_pages": total_pages
+            "total_pages": total_pages,
+            "debug_search": debug_search if 'debug_search' in locals() else "None"
         }
     except Exception as e:
         await log_activity('ERROR', 'get_permisos_failed', f"Error al obtener permisos: {e}")
@@ -595,9 +604,11 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         df = df.iloc[::-1]
 
         # Aplicar búsqueda global si hay término
-        if search:
-            search_str = search.lower()
-            mask = df.apply(lambda row: row.astype(str).str.contains(search_str, case=False).any(), axis=1)
+        debug_search = f"Received: {search}"
+        if search and str(search).strip():
+            search_str = str(search).lower()
+            # Método más robusto para filtrar en todas las columnas
+            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
             df = df[mask]
 
         total_records = len(df)
@@ -660,7 +671,8 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
             "total_records": total_records,
             "page": page,
             "limit": limit,
-            "total_pages": total_pages
+            "total_pages": total_pages,
+            "debug_search": debug_search if 'debug_search' in locals() else "None"
         }
     except Exception as e:
         await log_activity('ERROR', 'get_reses_failed', f"Error al obtener reses: {e}")
@@ -944,7 +956,8 @@ async def get_reses_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=
             "total_records": total_records,
             "page": page,
             "limit": limit,
-            "total_pages": total_pages
+            "total_pages": total_pages,
+            "debug_search": debug_search if 'debug_search' in locals() else "None"
         }
     except Exception as e:
         await log_activity('ERROR', 'get_reses_pagos_failed', str(e))
@@ -1302,12 +1315,13 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         # Ordenar por fecha (más reciente primero)
         all_payments.sort(key=lambda x: x["date_created"] if x["date_created"] else "", reverse=True)
 
-        # Filtro de búsqueda
-        if search:
-            s = search.lower()
+        # Aplicar búsqueda global si hay término
+        debug_search = f"Received: {search}"
+        if search and str(search).strip():
+            search_str = str(search).lower()
             all_payments = [
-                p for p in all_payments
-                if any(s in str(val).lower() for val in p.values() if val is not None)
+                p for p in all_payments 
+                if any(search_str in str(val).lower() for val in p.values())
             ]
 
         # Aplicar paginación
@@ -1321,7 +1335,8 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
             "total_records": total_records,
             "page": page,
             "limit": limit,
-            "total_pages": total_pages
+            "total_pages": total_pages,
+            "debug_search": debug_search if 'debug_search' in locals() else "None"
         }
     except Exception as e:
         await log_activity('ERROR', 'get_pagos_failed', f"Error al obtener pagos: {e}")
