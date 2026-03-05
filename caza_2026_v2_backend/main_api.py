@@ -1374,13 +1374,14 @@ async def register_manual_payment(request_data: ManualPaymentRequest):
         if not insc_id:
             raise HTTPException(status_code=400, detail="inscription_id inválido.")
 
-        # existing_query = select(pagos).where(
-        #     pagos.c.inscription_id == insc_id,
-        #     pagos.c.status == 'approved'
-        # )
-        # existing = await database.fetch_one(existing_query)
-        # if existing:
-        #     return {"status": "already_paid", "inscription_id": insc_id, "message": "Esta inscripción ya tiene un pago aprobado."}
+        # Verificar si ya existe un pago approved para esta inscripción
+        existing_query = select(pagos).where(
+            pagos.c.inscription_id == insc_id,
+            pagos.c.status == 'approved'
+        )
+        existing = await database.fetch_one(existing_query)
+        if existing:
+            return {"status": "already_paid", "inscription_id": insc_id, "message": "Esta inscripción ya tiene un pago aprobado."}
 
         # Determinar el monto
         amount = request_data.amount
