@@ -1283,23 +1283,34 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         # Obtener pagos de permisos
         permisos_records = await database.fetch_all(pagos_permisos.select())
 
+        # Obtener datos de nombres para enriquecer búsqueda
+        from sqlalchemy import select
+        insc_names_records = await database.fetch_all(inscripciones_data.select())
+        perm_names_records = await database.fetch_all(permisos_caza.select())
+        
+        insc_map = {safe_str_id(r['numero_inscripcion']): r['nombre_establecimiento'] for r in insc_names_records}
+        perm_map = {str(r['id']): r['nombre_establecimiento'] for r in perm_names_records}
+
         # Combinar y normalizar
         all_payments = []
 
         for record in inscripciones_records:
+            insc_id = safe_str_id(record["inscription_id"])
             all_payments.append({
                 "id": record["id"],
                 "payment_id": record["payment_id"],
-                "inscription_id": record["inscription_id"],
+                "inscription_id": insc_id,
                 "permiso_id": None,
                 "status": record["status"],
                 "status_detail": record["status_detail"],
                 "amount": record["amount"],
                 "email": record["email"],
-                "date_created": record["date_created"]
+                "date_created": record["date_created"],
+                "establecimiento": insc_map.get(insc_id, "N/A")
             })
 
         for record in permisos_records:
+            perm_id = str(record["permiso_id"])
             all_payments.append({
                 "id": record["id"],
                 "payment_id": record["payment_id"],
@@ -1309,7 +1320,8 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
                 "status_detail": record["status_detail"],
                 "amount": record["amount"],
                 "email": record["email"],
-                "date_created": record["date_created"]
+                "date_created": record["date_created"],
+                "establecimiento": perm_map.get(perm_id, "N/A")
             })
 
         # Ordenar por fecha (más reciente primero)
@@ -1408,6 +1420,14 @@ async def register_manual_payment(request_data: ManualPaymentRequest):
             date_created=datetime.datetime.now(datetime.timezone.utc)
         )
         await database.execute(insert_query)
+
+        # Actualizar Google Sheets
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        try:
+            sheets_services.update_payment_status(sheet_id, "inscrip", insc_id, "Pagado")
+            await log_activity('INFO', 'manual_payment_sheet_updated', f"Hoja de cálculo actualizada para {insc_id}")
+        except Exception as e_sheet:
+            await log_activity('WARNING', 'manual_payment_sheet_update_failed', f"Error al actualizar hoja para {insc_id}: {e_sheet}")
 
         await log_activity('INFO', 'manual_payment_registered', f"Pago manual aprobado para {insc_id} por ${amount}")
         return {
