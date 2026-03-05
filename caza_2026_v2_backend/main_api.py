@@ -1303,7 +1303,8 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
 
 class ManualPaymentRequest(BaseModel):
     inscription_id: str
-    amount: float
+    amount: Optional[float] = None  # Si no se provee, se busca en la hoja 'precios'
+    tipo_establecimiento: Optional[str] = None  # 'Area Libre' o 'Criadero'
     email: Optional[str] = None
     notes: Optional[str] = None  # e.g. "Transferencia bancaria", "Efectivo"
 
@@ -1311,8 +1312,8 @@ class ManualPaymentRequest(BaseModel):
 async def register_manual_payment(request_data: ManualPaymentRequest):
     """
     Registra un pago manual (transferencia, efectivo, etc.) para una inscripción.
-    Inserta un registro en la tabla 'pagos' con status='approved' y
-    actualiza el estado en Google Sheets.
+    Si no se provee 'amount', busca el precio en la hoja 'precios' según tipo_establecimiento.
+    Inserta un registro en la tabla 'pagos' con status='approved'.
     """
     await log_activity('INFO', 'manual_payment_request', f"Pago manual para inscripción: {request_data.inscription_id}, monto: {request_data.amount}")
     try:
@@ -1329,6 +1330,28 @@ async def register_manual_payment(request_data: ManualPaymentRequest):
         if existing:
             return {"status": "already_paid", "inscription_id": insc_id, "message": "Esta inscripción ya tiene un pago aprobado."}
 
+        # Determinar el monto
+        amount = request_data.amount
+        if amount is None:
+            if not request_data.tipo_establecimiento:
+                raise HTTPException(status_code=400, detail="Se debe proveer 'amount' o 'tipo_establecimiento' para calcular el precio.")
+            # Leer precio de la hoja precios
+            sheet_id = os.getenv("GOOGLE_SHEET_ID")
+            precios_df = sheets_services.read_sheet_data(sheet_id, "precios")
+            tipo = request_data.tipo_establecimiento.lower()
+            precio_row = None
+            if "area libre" in tipo:
+                precio_row = precios_df[precios_df['Actividad'].str.contains("Area Libre", case=False, na=False)]
+            elif "criadero" in tipo:
+                precio_row = precios_df[precios_df['Actividad'].str.contains("Criadero", case=False, na=False) &
+                                       precios_df['Actividad'].str.contains("Establecimiento", case=False, na=False)]
+            if precio_row is None or precio_row.empty:
+                raise HTTPException(status_code=400, detail=f"No se encontró precio para el tipo: {request_data.tipo_establecimiento}")
+            precio_str = precio_row.iloc[0]['Valor']
+            precio_limpio = precio_str.replace('$', '').replace(',', '').replace('.', '').strip()
+            amount = float(precio_limpio) / 100  # Convertir centavos a pesos
+            await log_activity('INFO', 'manual_payment_price_lookup', f"Precio calculado para {tipo}: ${amount}")
+
         # Generar un payment_id único (negativo para diferenciarlo de MercadoPago)
         import time
         manual_payment_id = -int(time.time() * 1000) % (10**15)
@@ -1339,26 +1362,18 @@ async def register_manual_payment(request_data: ManualPaymentRequest):
             inscription_id=insc_id,
             status='approved',
             status_detail=f"manual: {request_data.notes or 'pago manual'}",
-            amount=request_data.amount,
+            amount=amount,
             email=request_data.email,
             date_created=datetime.datetime.now(datetime.timezone.utc)
         )
         await database.execute(insert_query)
 
-        # Actualizar Google Sheets
-        try:
-            sheet_id = os.getenv("GOOGLE_SHEET_ID")
-            sheets_services.update_payment_status(sheet_id, "inscrip", insc_id, "Pagado")
-            await log_activity('INFO', 'manual_payment_sheets_updated', f"Sheets actualizado para {insc_id}")
-        except Exception as sheets_err:
-            await log_activity('WARNING', 'manual_payment_sheets_error', f"No se pudo actualizar Sheets: {sheets_err}")
-
-        await log_activity('INFO', 'manual_payment_registered', f"Pago manual aprobado para {insc_id} por ${request_data.amount}")
+        await log_activity('INFO', 'manual_payment_registered', f"Pago manual aprobado para {insc_id} por ${amount}")
         return {
             "status": "ok",
             "inscription_id": insc_id,
             "payment_id": manual_payment_id,
-            "amount": request_data.amount,
+            "amount": amount,
             "message": "Pago manual registrado exitosamente."
         }
     except HTTPException:
