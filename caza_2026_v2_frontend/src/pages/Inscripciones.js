@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewCredentialAPI, logSentItem, fetchSentItems } from '../utils/api';
+import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewCredentialAPI, logSentItem, fetchSentItems, registerManualPayment } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -17,6 +17,7 @@ const Inscripciones = () => {
   const [sendingPayment, setSendingPayment] = useState({});
   const [sendingCredential, setSendingCredential] = useState({});
   const [viewingCredential, setViewingCredential] = useState({});
+  const [markingPaid, setMarkingPaid] = useState({});
   // Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -163,6 +164,33 @@ const Inscripciones = () => {
     }
   };
 
+  const handleMarkAsPaid = async (inscripcion, index) => {
+    const confirm = window.confirm(
+      `¿Confirmar pago manual para "${inscripcion.nombre_establecimiento}"?\n\nEsto registrará el pago como aprobado en la base de datos.`
+    );
+    if (!confirm) return;
+
+    setMarkingPaid(prev => ({ ...prev, [index]: true }));
+    try {
+      const result = await registerManualPayment({
+        inscription_id: inscripcion.numero_inscripcion,
+        tipo_establecimiento: inscripcion['su establecimiento es'],
+        email: inscripcion.email,
+        notes: 'Marcado manualmente por administrador',
+      });
+      if (result.status === 'already_paid') {
+        alert('Esta inscripción ya estaba registrada como pagada.');
+      } else {
+        alert(`✅ Pago registrado correctamente.\nMonto: $${result.amount?.toLocaleString('es-AR') || 'N/A'}`);
+        await getInscripciones(currentPage);
+      }
+    } catch (err) {
+      alert(`Error al registrar pago: ${err.message}`);
+    } finally {
+      setMarkingPaid(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
   const handleSendPdf = async (inscripcion) => {
     try {
       // Assuming 'Ver PDF' action also needs logging
@@ -281,6 +309,16 @@ const Inscripciones = () => {
                         >
                           {sendingPayment[index] ? 'Enviando...' : (inscripcion['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro')}
                         </button>
+                        {inscripcion['Estado de Pago'] !== 'Pagado' && (
+                          <button
+                            onClick={() => handleMarkAsPaid(inscripcion, index)}
+                            disabled={markingPaid[index]}
+                            className="action-button btn-success"
+                            title="Marcar como pagado manualmente (transferencia, efectivo, etc.)"
+                          >
+                            {markingPaid[index] ? 'Registrando...' : '✓ Marcar como Pagado'}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleSendCredential(inscripcion, index)}
                           disabled={sendingCredential[index]}

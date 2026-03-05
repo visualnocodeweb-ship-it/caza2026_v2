@@ -291,6 +291,19 @@ export const sendPaymentLink = async (paymentLinkData) => {
   }
 };
 
+export const registerManualPayment = async ({ inscription_id, tipo_establecimiento, email, notes }) => {
+  const response = await fetch(`${API_BASE_URL}/pagos/manual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inscription_id, tipo_establecimiento, email, notes }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+};
+
 export const sendPermisoPaymentLink = async (paymentLinkData) => {
   try {
     const response = await fetch(`${API_BASE_URL}/send-permiso-payment-link`, {
