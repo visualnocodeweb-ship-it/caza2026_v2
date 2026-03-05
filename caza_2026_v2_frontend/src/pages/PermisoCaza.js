@@ -18,11 +18,11 @@ const PermisoCaza = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const getPermisos = async (page) => {
+  const getPermisos = async (page, search = '') => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchPermisos(page, RECORDS_PER_PAGE);
+      const data = await fetchPermisos(page, RECORDS_PER_PAGE, search);
 
       setPermisos(data.data);
       setTotalRecords(data.total_records);
@@ -45,8 +45,8 @@ const PermisoCaza = () => {
   };
 
   useEffect(() => {
-    getPermisos(currentPage);
-  }, [currentPage]);
+    getPermisos(currentPage, searchTerm);
+  }, [currentPage, searchTerm]);
 
   const toggleExpand = (index) => {
     setExpandedStates(prevStates => ({
@@ -141,11 +141,6 @@ const PermisoCaza = () => {
     return date.toLocaleString();
   };
 
-  const filteredPermisos = permisos.filter(permiso =>
-    (permiso['Nombre y Apellido'] && permiso['Nombre y Apellido'].toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (permiso['DNI o Pasaporte'] && permiso['DNI o Pasaporte'].toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
   if (loading && permisos.length === 0) {
     return <p>Cargando permisos...</p>;
   }
@@ -168,9 +163,9 @@ const PermisoCaza = () => {
 
       {loading && permisos.length > 0 && <p>Actualizando permisos...</p>}
 
-      {filteredPermisos.length > 0 ? (
+      {permisos.length > 0 ? (
         <div className="inscripciones-list">
-          {filteredPermisos.map((permiso, index) => (
+          {permisos.map((permiso, index) => (
             <div key={permiso.ID || index} className={`inscripcion-card ${permiso['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : 'pendiente-bg'}`} data-expanded={!!expandedStates[index]}>
               <div className="card-header" onClick={() => toggleExpand(index)}>
                 <h3>{permiso['Nombre y Apellido'] || 'Nombre no disponible'}</h3>

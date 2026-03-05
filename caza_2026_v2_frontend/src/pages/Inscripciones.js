@@ -23,11 +23,11 @@ const Inscripciones = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const getInscripciones = async (page) => {
+  const getInscripciones = async (page, search = '') => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchInscripciones(page, RECORDS_PER_PAGE);
+      const data = await fetchInscripciones(page, RECORDS_PER_PAGE, search);
 
       setInscripciones(data.data);
       setTotalRecords(data.total_records);
@@ -50,8 +50,8 @@ const Inscripciones = () => {
   };
 
   useEffect(() => {
-    getInscripciones(currentPage);
-  }, [currentPage]);
+    getInscripciones(currentPage, searchTerm);
+  }, [currentPage, searchTerm]);
 
   const toggleExpand = (index) => {
     setExpandedStates(prevStates => ({
@@ -210,11 +210,6 @@ const Inscripciones = () => {
     return date.toLocaleString();
   };
 
-  const filteredInscripciones = inscripciones.filter(inscripcion =>
-    (inscripcion.nombre_establecimiento && inscripcion.nombre_establecimiento.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (inscripcion.razon_social && inscripcion.razon_social.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
   if (loading && inscripciones.length === 0) {
     return <p>Cargando inscripciones...</p>;
   }
@@ -241,9 +236,9 @@ const Inscripciones = () => {
 
       {loading && inscripciones.length > 0 && <p>Actualizando inscripciones...</p>}
 
-      {filteredInscripciones.length > 0 ? (
+      {inscripciones.length > 0 ? (
         <div className="inscripciones-list">
-          {filteredInscripciones.map((inscripcion, index) => (
+          {inscripciones.map((inscripcion, index) => (
             <div key={inscripcion.numero_inscripcion || index} className={`inscripcion-card ${inscripcion['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : 'pendiente-bg'}`} data-expanded={!!expandedStates[index]}>
               <div className="card-header" onClick={() => toggleExpand(index)}>
                 <h3>{inscripcion.nombre_establecimiento || 'Nombre no disponible'}</h3>

@@ -8,9 +8,12 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://caza2026-1.onrender.com/api'
   : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
 
-export const fetchInscripciones = async (page = 1, limit = 10) => {
+export const fetchInscripciones = async (page = 1, limit = 10, search = '') => {
   try {
-    const url = `${API_BASE_URL}/inscripciones?page=${page}&limit=${limit}`;
+    let url = `${API_BASE_URL}/inscripciones?page=${page}&limit=${limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
     console.log("Fetching URL:", url); // DEBUG
     const response = await fetch(url);
     if (!response.ok) {
@@ -24,9 +27,13 @@ export const fetchInscripciones = async (page = 1, limit = 10) => {
   }
 };
 
-export const fetchPermisos = async (page = 1, limit = 10) => {
+export const fetchPermisos = async (page = 1, limit = 10, search = '') => {
   try {
-    const response = await fetch(`${API_BASE_URL}/permisos?page=${page}&limit=${limit}`);
+    let url = `${API_BASE_URL}/permisos?page=${page}&limit=${limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -38,9 +45,13 @@ export const fetchPermisos = async (page = 1, limit = 10) => {
   }
 };
 
-export const fetchReses = async (page = 1, limit = 10) => {
+export const fetchReses = async (page = 1, limit = 10, search = '') => {
   try {
-    const response = await fetch(`${API_BASE_URL}/reses?page=${page}&limit=${limit}`);
+    let url = `${API_BASE_URL}/reses?page=${page}&limit=${limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -158,9 +169,13 @@ export const fetchPrices = async () => {
   }
 };
 
-export const fetchPayments = async (page = 1, limit = 10) => {
+export const fetchPayments = async (page = 1, limit = 10, search = '') => {
   try {
-    const response = await fetch(`${API_BASE_URL}/pagos?page=${page}&limit=${limit}`);
+    let url = `${API_BASE_URL}/pagos?page=${page}&limit=${limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

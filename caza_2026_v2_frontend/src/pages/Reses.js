@@ -20,11 +20,11 @@ const Reses = () => {
     const [totalPages, setTotalPages] = useState(0);
     const [totalRecords, setTotalRecords] = useState(0);
 
-    const getReses = async (page) => {
+    const getReses = async (page, search = '') => {
         setLoading(true);
         setError(null);
         try {
-            const data = await fetchReses(page, RECORDS_PER_PAGE);
+            const data = await fetchReses(page, RECORDS_PER_PAGE, search);
             setReses(data.data);
             setTotalRecords(data.total_records);
             setTotalPages(data.total_pages);
@@ -52,8 +52,8 @@ const Reses = () => {
     };
 
     useEffect(() => {
-        getReses(currentPage);
-    }, [currentPage]);
+        getReses(currentPage, searchTerm);
+    }, [currentPage, searchTerm]);
 
     const toggleExpand = (index) => {
         setExpandedStates(prevStates => ({
@@ -238,12 +238,6 @@ const Reses = () => {
         return dateString;
     };
 
-    const filteredReses = reses.filter(item =>
-        (item['Nombre y Apellido'] && item['Nombre y Apellido'].toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item['DNI'] && item['DNI'].toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item['Especie'] && item['Especie'].toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
     if (loading && reses.length === 0) {
         return <p className="loading-text">Cargando datos de reses...</p>;
     }
@@ -266,9 +260,9 @@ const Reses = () => {
 
             {loading && reses.length > 0 && <p className="loading-text">Actualizando datos...</p>}
 
-            {filteredReses.length > 0 ? (
+            {reses.length > 0 ? (
                 <div className="inscripciones-list">
-                    {filteredReses.map((item, index) => (
+                    {reses.map((item, index) => (
                         <div key={item.ID || index} className={`inscripcion-card ${item.is_paid ? 'pagado-bg' : ''}`} data-expanded={!!expandedStates[index]}>
                             <div className="card-header" onClick={() => toggleExpand(index)}>
                                 <div className="header-info">

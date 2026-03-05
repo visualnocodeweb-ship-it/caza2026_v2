@@ -185,9 +185,9 @@ async def health_check():
 
 print("DEBUG: Registering /api/inscripciones route")
 @app.get("/api/inscripciones", response_model=Dict[str, Any])
-async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
-    print(f"DEBUG: Executing get_inscripciones page={page} limit={limit}")
-    await log_activity('INFO', 'get_inscripciones_request', f'Solicitud de inscripciones - Página: {page}, Límite: {limit}')
+async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+    print(f"DEBUG: Executing get_inscripciones page={page} limit={limit} search={search}")
+    await log_activity('INFO', 'get_inscripciones_request', f'Solicitud de inscripciones - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         # Aquí deberías leer las inscripciones desde Google Sheets o tu DB.
         # Por simplicidad, leeremos de sheets_services.py, ajusta esto si usas una DB principal.
@@ -207,6 +207,12 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
         
         if df.empty:
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        # Aplicar búsqueda global si hay término
+        if search:
+            search_str = search.lower()
+            mask = df.apply(lambda row: row.astype(str).str.contains(search_str, case=False).any(), axis=1)
+            df = df[mask]
 
         total_records = len(df)
         offset = (page - 1) * limit
@@ -477,8 +483,8 @@ async def create_inscripcion(inscripcion: InscriptionCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al crear inscripción: {e}")
 
 @app.get("/api/permisos", response_model=Dict[str, Any])
-async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
-    await log_activity('INFO', 'get_permisos_request', f'Solicitud de permisos - Página: {page}, Límite: {limit}')
+async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+    await log_activity('INFO', 'get_permisos_request', f'Solicitud de permisos - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         # Leer permisos desde Google Sheets o DB
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
@@ -496,6 +502,12 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         
         if df.empty:
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        # Aplicar búsqueda global si hay término
+        if search:
+            search_str = search.lower()
+            mask = df.apply(lambda row: row.astype(str).str.contains(search_str, case=False).any(), axis=1)
+            df = df[mask]
 
         total_records = len(df)
         offset = (page - 1) * limit
@@ -565,8 +577,8 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener permisos: {e}")
 
 @app.get("/api/reses", response_model=Dict[str, Any])
-async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
-    await log_activity('INFO', 'get_reses_request', f'Solicitud de reses - Página: {page}, Límite: {limit}')
+async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+    await log_activity('INFO', 'get_reses_request', f'Solicitud de reses - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         reses_tab_name = "reses"
@@ -581,6 +593,12 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
 
         # Invertir para que lo más nuevo esté arriba
         df = df.iloc[::-1]
+
+        # Aplicar búsqueda global si hay término
+        if search:
+            search_str = search.lower()
+            mask = df.apply(lambda row: row.astype(str).str.contains(search_str, case=False).any(), axis=1)
+            df = df[mask]
 
         total_records = len(df)
         offset = (page - 1) * limit
@@ -1244,8 +1262,8 @@ async def fetch_payment_from_mercadopago(payment_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/pagos", response_model=Dict[str, Any])
-async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
-    await log_activity('INFO', 'get_pagos_request', f'Solicitud de pagos - Página: {page}, Límite: {limit}')
+async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+    await log_activity('INFO', 'get_pagos_request', f'Solicitud de pagos - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         # Obtener pagos de inscripciones
         inscripciones_records = await database.fetch_all(pagos.select())
@@ -1283,6 +1301,14 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
 
         # Ordenar por fecha (más reciente primero)
         all_payments.sort(key=lambda x: x["date_created"] if x["date_created"] else "", reverse=True)
+
+        # Filtro de búsqueda
+        if search:
+            s = search.lower()
+            all_payments = [
+                p for p in all_payments
+                if any(s in str(val).lower() for val in p.values() if val is not None)
+            ]
 
         # Aplicar paginación
         total_records = len(all_payments)

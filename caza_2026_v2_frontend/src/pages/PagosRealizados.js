@@ -48,6 +48,7 @@ const PagosRealizados = () => {
   const [errorReses, setErrorReses] = useState(null);
   const [resesPage, setResesPage] = useState(1);
   const [resesTotalPages, setResesTotalPages] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [limit] = useState(10); // Common limit for all
 
@@ -55,7 +56,7 @@ const PagosRealizados = () => {
     const getPayments = async () => {
       setLoadingPayments(true);
       try {
-        const data = await fetchPayments(paymentsPage, limit);
+        const data = await fetchPayments(paymentsPage, limit, searchTerm);
         setPayments(data.data);
         setPaymentsTotalPages(data.total_pages);
       } catch (err) {
@@ -68,7 +69,7 @@ const PagosRealizados = () => {
     if (view === 'realizados') {
       getPayments();
     }
-  }, [view, paymentsPage, limit]);
+  }, [view, paymentsPage, limit, searchTerm]);
 
   useEffect(() => {
     const getCobros = async () => {
@@ -338,6 +339,17 @@ const PagosRealizados = () => {
             Registro de Actividad (Logs)
           </button>
         </div>
+      </div>
+
+      <div className="toolbar" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
+        <input
+          type="text"
+          placeholder="Buscar en todos los registros..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+          style={{ width: '100%', maxWidth: '500px' }}
+        />
       </div>
 
       <div className="glass-card" style={{ padding: '2rem' }}>
