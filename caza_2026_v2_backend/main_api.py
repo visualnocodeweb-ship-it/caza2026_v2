@@ -744,9 +744,6 @@ async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
         await log_activity('ERROR', 'send_reses_guia_failed', f"Error al enviar guía: {e}")
         raise HTTPException(status_code=500, detail=f"Error al enviar guía: {e}")
 
-    except Exception as e:
-        await log_activity('ERROR', 'send_reses_guia_failed', f"Error al enviar guía: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al enviar guía: {e}")
 
 class SendResesPaymentRequest(BaseModel):
     res_id: str
