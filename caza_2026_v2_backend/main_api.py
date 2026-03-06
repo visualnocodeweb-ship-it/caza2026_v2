@@ -854,11 +854,15 @@ async def log_reses_action_endpoint(request_data: SendResesActionRequest):
                 if updates:
                     update_query = reses_details.update().where(reses_details.c.res_id == res_id_clean).values(**updates)
                     await database.execute(update_query)
+                    print(f"DEBUG log-action: Actualizado res_id={res_id_clean} con {updates}", flush=True)
             else:
                 if updates:
-                    insert_query = reses_details.insert().values(res_id=res_id_clean, **updates)
+                    # Al insertar, asegurarse de que is_paid tenga un valor explícito
+                    insert_values = {"res_id": res_id_clean, "is_paid": False, **updates}
+                    insert_query = reses_details.insert().values(**insert_values)
                     await database.execute(insert_query)
-                
+                    print(f"DEBUG log-action: Insertado res_id={res_id_clean} con {insert_values}", flush=True)
+
         return {"status": "success", "message": "Acción registrada y datos actualizados"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -893,7 +897,7 @@ async def get_reses_stats():
             total_revenue = 0
         else:
             revenue_query = select(func.sum(reses_details.c.amount)).where(
-                reses_details.c.is_paid == True,
+                reses_details.c.is_paid.is_(True),
                 reses_details.c.res_id.in_(valid_ids)
             )
             total_revenue = await database.fetch_val(revenue_query)
@@ -913,19 +917,27 @@ async def get_reses_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=
     await log_activity('INFO', 'get_reses_pagos_request', f'Solicitud de pagos de reses - Página: {page}, Límite: {limit}')
     try:
         # 1. Obtener todos los detalles de pago de la DB donde is_paid es True
-        query = select(reses_details).where(reses_details.c.is_paid == True)
+        # Usamos .is_(True) en lugar de == True para manejar correctamente valores NULL
+        query = select(reses_details).where(reses_details.c.is_paid.is_(True))
         db_records = await database.fetch_all(query)
+        print(f"DEBUG get_reses_pagos: DB devolvió {len(db_records)} registros con is_paid=True", flush=True)
+        for r in db_records:
+            print(f"  -> res_id={r['res_id']} amount={r['amount']} is_paid={r['is_paid']}", flush=True)
+
         db_dict = {safe_str_id(r['res_id']): dict(r) for r in db_records if safe_str_id(r['res_id'])}
 
         if not db_dict:
+            print("DEBUG get_reses_pagos: db_dict vacío, retornando lista vacía", flush=True)
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
 
         # 2. Leer datos de Google Sheets para enriquecer (Nombre, Especie, etc.)
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         df = sheets_services.read_sheet_data(sheet_id, "reses")
-        
+
         if df.empty:
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        print(f"DEBUG get_reses_pagos: Sheets devolvió {len(df)} filas. IDs en DB: {list(db_dict.keys())}", flush=True)
 
         enriched_data = []
         for _, row in df.iterrows():
@@ -943,7 +955,7 @@ async def get_reses_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=
                     "date": row.get('Fecha', 'N/A')
                 })
 
-        # Ordenar por fecha (asumiendo que los últimos están al final del DF)
+        # Ordenar por fecha (más reciente primero)
         enriched_data.reverse()
 
         total_records = len(enriched_data)
@@ -956,8 +968,7 @@ async def get_reses_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=
             "total_records": total_records,
             "page": page,
             "limit": limit,
-            "total_pages": total_pages,
-            "debug_search": debug_search if 'debug_search' in locals() else "None"
+            "total_pages": total_pages
         }
     except Exception as e:
         await log_activity('ERROR', 'get_reses_pagos_failed', str(e))
@@ -1278,20 +1289,12 @@ async def fetch_payment_from_mercadopago(payment_id: str):
 async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_pagos_request', f'Solicitud de pagos - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
-        # Obtener pagos de inscripciones
+        # Obtener pagos de inscripciones desde la tabla 'pagos'
         inscripciones_records = await database.fetch_all(pagos.select())
-        # Obtener pagos de permisos
+        # Obtener pagos de permisos desde la tabla 'pagos_permisos'
         permisos_records = await database.fetch_all(pagos_permisos.select())
 
-        # Obtener datos de nombres para enriquecer búsqueda
-        from sqlalchemy import select
-        insc_names_records = await database.fetch_all(inscripciones_data.select())
-        perm_names_records = await database.fetch_all(permisos_caza.select())
-        
-        insc_map = {safe_str_id(r['numero_inscripcion']): r['nombre_establecimiento'] for r in insc_names_records}
-        perm_map = {str(r['id']): r['nombre_establecimiento'] for r in perm_names_records}
-
-        # Combinar y normalizar
+        # Combinar y normalizar ambas tablas
         all_payments = []
 
         for record in inscripciones_records:
@@ -1306,22 +1309,19 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
                 "amount": record["amount"],
                 "email": record["email"],
                 "date_created": record["date_created"],
-                "establecimiento": insc_map.get(insc_id, "N/A")
             })
 
         for record in permisos_records:
-            perm_id = str(record["permiso_id"])
             all_payments.append({
                 "id": record["id"],
                 "payment_id": record["payment_id"],
                 "inscription_id": None,
-                "permiso_id": record["permiso_id"],
+                "permiso_id": safe_str_id(record["permiso_id"]),
                 "status": record["status"],
                 "status_detail": record["status_detail"],
                 "amount": record["amount"],
                 "email": record["email"],
                 "date_created": record["date_created"],
-                "establecimiento": perm_map.get(perm_id, "N/A")
             })
 
         # Ordenar por fecha (más reciente primero)
