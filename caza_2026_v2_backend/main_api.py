@@ -758,44 +758,62 @@ async def generate_guia_completa_pdf(guia_id: str):
         try:
             pdf = FPDF()
             pdf.add_page()
-            # fpdf2 usa 'helvetica' por defecto si Arial no carga bien
-            pdf.set_font("helvetica", "B", 16)
-            pdf.cell(0, 10, "GUÍA DE TRASLADO COMPLETA (PARTE 1 Y 2)", ln=True, align="C")
+            
+            # Membrete
+            assets_path = os.path.join(os.path.dirname(__file__), "assets")
+            membrete_path = os.path.join(assets_path, "membrete.png")
+            if os.path.exists(membrete_path):
+                pdf.image(membrete_path, x=10, y=10, w=190)
+                pdf.ln(25) # Espacio después del membrete
+            else:
+                pdf.ln(10)
+
+            # Título
+            pdf.set_font("helvetica", "B", 14)
+            pdf.cell(0, 10, "Guía de Traslado de Cabezas - Dirección de Fauna Neuquén", ln=True, align="C")
             pdf.ln(5)
 
             # Parte 1 - cabeza_1
-            pdf.set_font("helvetica", "B", 12)
+            pdf.set_font("helvetica", "B", 11)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, "PARTE 1 - DATOS GENERALES", ln=True, fill=True)
-            pdf.set_font("helvetica", "", 10)
+            pdf.cell(0, 8, "PARTE 1 - DATOS GENERALES", ln=True, fill=True)
+            pdf.set_font("helvetica", "", 9)
             
-            fields1 = ["NI", "ID", "ACM", "Tipo ACM", "Especies", "Fecha", "Nombre", "DNI", "Correo", "Telefono", "Numero permiso caza"]
+            # ELIMINADO: NI según pedido del usuario
+            fields1 = ["ID", "ACM", "Tipo ACM", "Especies", "Fecha", "Nombre", "DNI", "Correo", "Telefono", "Numero permiso caza"]
             for field in fields1:
                 val = str(data1.get(field, "N/A"))
-                pdf.set_font("helvetica", "B", 10)
-                pdf.write(10, f"{field}: ")
-                pdf.set_font("helvetica", "", 10)
-                pdf.write(10, f"{val}\n")
+                pdf.set_font("helvetica", "B", 9)
+                pdf.write(7, f"{field}: ")
+                pdf.set_font("helvetica", "", 9)
+                pdf.write(7, f"{val}\n")
             
-            pdf.ln(5)
+            pdf.ln(4)
 
             # Parte 2 - cabeza_2
-            pdf.set_font("helvetica", "B", 12)
+            pdf.set_font("helvetica", "B", 11)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, "PARTE 2 - DETALLES TÉCNICOS", ln=True, fill=True)
-            pdf.set_font("helvetica", "", 10)
+            pdf.cell(0, 8, "PARTE 2 - DETALLES TÉCNICOS", ln=True, fill=True)
+            pdf.set_font("helvetica", "", 9)
 
             if data2:
-                for key, val in data2.items():
-                    if key.lower() != 'id':
-                        pdf.set_font("helvetica", "B", 10)
-                        pdf.write(10, f"{key.capitalize()}: ")
-                        pdf.set_font("helvetica", "", 10)
-                        pdf.write(10, f"{str(val)}\n")
+                # Campos específicos solicitados por el usuario
+                fields2 = [
+                    'fecha', 'puntas totales', 'asta izquierda', 'asta derecha', 'puntas quebradas', 
+                    'puntas faltantes', 'largo asta derecha', 'largo asta izquierda', 'apertura', 
+                    'peso', 'desgaste relativo', 'circunferencia roseta derecha', 
+                    'circunferencia roseta izquierda', 'precinto', 'agente'
+                ]
+                for key in fields2:
+                    val = data2.get(key, "N/A")
+                    pdf.set_font("helvetica", "B", 9)
+                    pdf.write(7, f"{key.capitalize()}: ")
+                    pdf.set_font("helvetica", "", 9)
+                    pdf.write(7, f"{str(val)}\n")
             else:
-                pdf.cell(0, 10, "No se encontraron detalles de la Parte 2 para este ID.", ln=True)
+                pdf.cell(0, 8, "No se encontraron detalles de la Parte 2 para este ID.", ln=True)
 
-            # 5. Imagen
+            # Imagen del registro
             img_url = data1.get('Imagen')
             if img_url:
                 try:
@@ -803,18 +821,21 @@ async def generate_guia_completa_pdf(guia_id: str):
                     response = requests.get(img_url, timeout=10)
                     if response.status_code == 200:
                         img_data = BytesIO(response.content)
-                        pdf.ln(10)
-                        pdf.set_font("helvetica", "B", 12)
-                        pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", ln=True)
-                        pdf.image(img_data, w=100)
+                        pdf.ln(5)
+                        pdf.set_font("helvetica", "B", 10)
+                        pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
+                        pdf.image(img_data, w=80) 
                         await log_activity('INFO', 'pdf_gen_img_success', "Imagen añadida al PDF")
-                    else:
-                        await log_activity('WARNING', 'pdf_gen_img_download_fail', f"Status code imagen: {response.status_code}")
                 except Exception as e:
                     await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
 
-            # En fpdf2, llamar a output() sin argumentos devuelve los bytes (bytearray).
-            # Convertimos a bytes explícitamente para evitar problemas de codificación.
+            # Firma (al final)
+            firma_path = os.path.join(assets_path, "firma.png")
+            if os.path.exists(firma_path):
+                # Posicionar la firma un poco más abajo
+                pdf.ln(10)
+                pdf.image(firma_path, w=50) 
+
             pdf_bytes = bytes(pdf.output())
             await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id}")
             return pdf_bytes, None
