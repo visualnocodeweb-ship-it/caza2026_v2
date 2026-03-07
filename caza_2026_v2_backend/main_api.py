@@ -813,9 +813,9 @@ async def generate_guia_completa_pdf(guia_id: str):
                 except Exception as e:
                     await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
 
-            # En fpdf2, llamar a output() sin argumentos devuelve los bytes. 
-            # dest='S' es para fpdf antiguo.
-            pdf_bytes = pdf.output()
+            # En fpdf2, llamar a output() sin argumentos devuelve los bytes (bytearray).
+            # Convertimos a bytes explícitamente para evitar problemas de codificación.
+            pdf_bytes = bytes(pdf.output())
             await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id}")
             return pdf_bytes, None
             
