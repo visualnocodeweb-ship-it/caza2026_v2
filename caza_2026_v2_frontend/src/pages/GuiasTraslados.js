@@ -50,6 +50,11 @@ const GuiasTraslados = () => {
         }));
     };
 
+    const handleCopyId = (id) => {
+        navigator.clipboard.writeText(id);
+        alert(`ID ${id} copiado al portapapeles`);
+    };
+
     if (loading && guias.length === 0) {
         return <p className="loading-text">Cargando guías de traslados...</p>;
     }
@@ -105,6 +110,23 @@ const GuiasTraslados = () => {
                                             <img src={item['Imagen']} alt="Registro" style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px', marginTop: '10px' }} />
                                         </div>
                                     )}
+                                    <div className="reses-actions-wrapper" style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                                        <button
+                                            className="action-button btn-primary"
+                                            onClick={() => handleCopyId(item['ID'])}
+                                        >
+                                            Copiar ID
+                                        </button>
+                                        <a
+                                            href="https://cazaypesca.neuquen.gob.ar/?ff_landing=22"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="action-button btn-success"
+                                            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                        >
+                                            Parte 2
+                                        </a>
+                                    </div>
                                 </div>
                             )}
                         </div>
