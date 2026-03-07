@@ -533,3 +533,24 @@ export const fetchGuiasTraslados = async (page = 1, limit = 10, search = '') => 
     return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
   }
 };
+
+export const getGuiaPdfUrl = (guiaId) => {
+  return `${API_BASE_URL}/guias-traslados/${guiaId}/pdf`;
+};
+
+export const sendGuiaEmail = async (guiaId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/guias-traslados/${guiaId}/email`, {
+      method: 'POST'
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error sending guia email:", error);
+    throw error;
+  }
+};

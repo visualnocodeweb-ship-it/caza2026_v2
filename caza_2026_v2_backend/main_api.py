@@ -14,6 +14,9 @@ from . import sheets_services, email_services, drive_services, mercadopago_servi
 import math # Needed for ceil
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+from fpdf import FPDF
+import requests
+from io import BytesIO
 
 # --- Helpers ---
 def safe_str_id(val) -> Optional[str]:
@@ -716,6 +719,153 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
     except Exception as e:
         await log_activity('ERROR', 'get_guias_traslados_failed', f"Error al obtener guías de traslados: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener guías de traslados: {e}")
+
+async def generate_guia_completa_pdf(guia_id: str):
+    try:
+        sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+        df1 = sheets_services.read_sheet_data(sheet_id, "cabeza_1")
+        df2 = sheets_services.read_sheet_data(sheet_id, "cabeza_2")
+
+        if df1.empty:
+            return None, "No se encontraron datos en cabeza_1"
+
+        # Buscar en cabeza_1
+        # El ID de cabeza_1 se llama 'ID' (en mayúsculas por lo visto en logs anteriores)
+        row1 = df1[df1['ID'].astype(str) == str(guia_id)]
+        if row1.empty:
+            return None, f"No se encontró la guía {guia_id} en cabeza_1"
+        
+        data1 = row1.iloc[0].to_dict()
+
+        # Buscar en cabeza_2 (aquí la columna se llama 'id' en minúsculas)
+        data2 = {}
+        if not df2.empty:
+            row2 = df2[df2['id'].astype(str) == str(guia_id)]
+            if not row2.empty:
+                data2 = row2.iloc[0].to_dict()
+
+        # Generar PDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 16)
+        pdf.cell(0, 10, "GUÍA DE TRASLADO COMPLETA (PARTE 1 Y 2)", ln=True, align="C")
+        pdf.ln(5)
+
+        # Parte 1 - cabeza_1
+        pdf.set_font("Arial", "B", 12)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, "PARTE 1 - DATOS GENERALES", ln=True, fill=True)
+        pdf.set_font("Arial", "", 10)
+        
+        fields1 = ["NI", "ID", "ACM", "Tipo ACM", "Especies", "Fecha", "Nombre", "DNI", "Correo", "Telefono", "Numero permiso caza"]
+        for field in fields1:
+            val = str(data1.get(field, "N/A"))
+            pdf.set_font("Arial", "B", 10)
+            pdf.write(10, f"{field}: ")
+            pdf.set_font("Arial", "", 10)
+            pdf.write(10, f"{val}\n")
+        
+        pdf.ln(5)
+
+        # Parte 2 - cabeza_2
+        pdf.set_font("Arial", "B", 12)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, "PARTE 2 - DETALLES TÉCNICOS", ln=True, fill=True)
+        pdf.set_font("Arial", "", 10)
+
+        if data2:
+            # Usamos las columnas encontradas anteriormente: 'fecha', 'puntas totales', 'precinto', 'agente'
+            for key, val in data2.items():
+                if key.lower() != 'id':
+                    pdf.set_font("Arial", "B", 10)
+                    pdf.write(10, f"{key.capitalize()}: ")
+                    pdf.set_font("Arial", "", 10)
+                    pdf.write(10, f"{str(val)}\n")
+        else:
+            pdf.cell(0, 10, "No se encontraron detalles de la Parte 2 para este ID.", ln=True)
+
+        # Imagen
+        img_url = data1.get('Imagen')
+        if img_url:
+            try:
+                response = requests.get(img_url, timeout=10)
+                if response.status_code == 200:
+                    img_data = BytesIO(response.content)
+                    pdf.ln(10)
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", ln=True)
+                    # Intentamos insertar la imagen. FPDF soporta BytesIO
+                    pdf.image(img_data, w=100)
+            except Exception as e:
+                print(f"Error al incluir imagen en PDF: {e}")
+
+        return pdf.output(dest='S'), None
+    except Exception as e:
+        print(f"Error en generate_guia_completa_pdf: {e}")
+        return None, str(e)
+
+@app.get("/api/guias-traslados/{guia_id}/pdf")
+async def get_guia_pdf(guia_id: str):
+    pdf_content, error = await generate_guia_completa_pdf(guia_id)
+    if error:
+        raise HTTPException(status_code=500, detail=error)
+    
+    # fpdf2 retorna bytes si dest='S'
+    from fastapi.responses import Response
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=Guia_Completa_{guia_id}.pdf"}
+    )
+
+@app.post("/api/guias-traslados/{guia_id}/email")
+async def send_guia_email(guia_id: str):
+    # 1. Obtener datos para el email
+    sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+    df = sheets_services.read_sheet_data(sheet_id, "cabeza_1")
+    row = df[df['ID'].astype(str) == str(guia_id)]
+    if row.empty:
+        raise HTTPException(status_code=404, detail="Guía no encontrada")
+    
+    data = row.iloc[0].to_dict()
+    to_email = data.get('Correo')
+    if not to_email:
+        raise HTTPException(status_code=400, detail="El registro no tiene correo electrónico configurado")
+
+    # 2. Generar PDF
+    pdf_content, error = await generate_guia_completa_pdf(guia_id)
+    if error:
+        raise HTTPException(status_code=500, detail=error)
+
+    # 3. Enviar Email
+    sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+    subject = f"Guía de Traslado Completa - Registro {guia_id}"
+    html_content = f"""
+    <html>
+        <body>
+            <h2>Guía de Traslado Completa</h2>
+            <p>Hola <strong>{data.get('Nombre', 'Cazador')}</strong>,</p>
+            <p>Se adjunta la Guía de Traslado completa (Parte 1 y 2) correspondiente al registro ID: <strong>{guia_id}</strong>.</p>
+            <br>
+            <p>Saludos,</p>
+            <p>Sistema de Control Caza 2026</p>
+        </body>
+    </html>
+    """
+
+    success = email_services.send_email_with_attachment(
+        to_email=to_email,
+        subject=subject,
+        html_content=html_content,
+        sender_email=sender_email,
+        attachment_content=pdf_content,
+        attachment_filename=f"Guia_Completa_{guia_id}.pdf"
+    )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Error al enviar el email")
+
+    return {"status": "success", "message": f"Email enviado correctamente a {to_email}"}
 
 class SendResesGuiaRequest(BaseModel):
     res_id: str

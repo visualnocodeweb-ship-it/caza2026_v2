@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchGuiasTraslados } from '../utils/api';
+import { fetchGuiasTraslados, getGuiaPdfUrl, sendGuiaEmail } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -8,6 +8,7 @@ const RECORDS_PER_PAGE = 10;
 const GuiasTraslados = () => {
     const [guias, setGuias] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [sendingEmail, setSendingEmail] = useState({});
     const [error, setError] = useState(null);
     const [expandedStates, setExpandedStates] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
@@ -53,6 +54,19 @@ const GuiasTraslados = () => {
     const handleCopyId = (id) => {
         navigator.clipboard.writeText(id);
         alert(`ID ${id} copiado al portapapeles`);
+    };
+
+    const handleSendEmail = async (guiaId) => {
+        setSendingEmail(prev => ({ ...prev, [guiaId]: true }));
+        try {
+            await sendGuiaEmail(guiaId);
+            alert("Email enviado correctamente con el PDF adjunto.");
+        } catch (err) {
+            console.error("Error al enviar email:", err);
+            alert("No se pudo enviar el email: " + err.message);
+        } finally {
+            setSendingEmail(prev => ({ ...prev, [guiaId]: false }));
+        }
     };
 
     if (loading && guias.length === 0) {
@@ -126,6 +140,29 @@ const GuiasTraslados = () => {
                                         >
                                             Parte 2
                                         </a>
+                                    </div>
+
+                                    <div className="reses-actions-wrapper" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
+                                        <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#1e293b' }}>Parte 2 Completa</p>
+                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                            <a
+                                                href={getGuiaPdfUrl(item['ID'])}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="action-button btn-secondary"
+                                                style={{ textDecoration: 'none', background: '#64748b', color: 'white' }}
+                                            >
+                                                Ver PDF
+                                            </a>
+                                            <button
+                                                className="action-button btn-primary"
+                                                onClick={() => handleSendEmail(item['ID'])}
+                                                disabled={sendingEmail[item['ID']]}
+                                                style={{ background: '#2E5661' }}
+                                            >
+                                                {sendingEmail[item['ID']] ? 'Enviando...' : 'Enviar Email'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
