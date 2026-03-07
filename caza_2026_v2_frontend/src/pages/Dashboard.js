@@ -33,6 +33,12 @@ const Dashboard = () => {
           >
             Reses
           </NavLink>
+          <NavLink
+            to="/dashboard/guias"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            Traslado de Cabezas
+          </NavLink>
         </nav>
       </div>
       <div className="dashboard-content">

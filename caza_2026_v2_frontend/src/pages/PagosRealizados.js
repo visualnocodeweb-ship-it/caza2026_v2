@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPayments, fetchCobrosEnviados, fetchPermisoCobrosEnviados, fetchResesPagos } from '../utils/api';
+import { fetchPayments, fetchCobrosEnviados, fetchPermisoCobrosEnviados, fetchResesPagos, fetchGuiasPagos } from '../utils/api';
 import Logs from './Logs'; // Import the new Logs component
 import './PagosRealizados.css';
 import '../styles/Responsive.css';
@@ -19,7 +19,7 @@ const formatStatus = (status) => {
 
 const PagosRealizados = () => {
   // State for the view mode
-  const [view, setView] = useState('realizados'); // 'realizados', 'enviados_inscripciones', 'enviados_permisos', 'logs'
+  const [view, setView] = useState('realizados'); // 'realizados', 'reses', 'guias', 'logs'
 
   // State for "Pagos Realizados"
   const [payments, setPayments] = useState([]);
@@ -28,28 +28,21 @@ const PagosRealizados = () => {
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [paymentsTotalPages, setPaymentsTotalPages] = useState(1);
 
-  // State for "Inscripciones Cobros Enviados"
-  const [sentCobros, setSentCobros] = useState([]);
-  const [loadingCobros, setLoadingCobros] = useState(true);
-  const [errorCobros, setErrorCobros] = useState(null);
-  const [cobrosPage, setCobrosPage] = useState(1);
-  const [cobrosTotalPages, setCobrosTotalPages] = useState(1);
-
-  // State for "Permisos Cobros Enviados"
-  const [sentPermisoCobros, setSentPermisoCobros] = useState([]);
-  const [loadingPermisoCobros, setLoadingPermisoCobros] = useState(true);
-  const [errorPermisoCobros, setErrorPermisoCobros] = useState(null);
-  const [permisoCobrosPage, setPermisoCobrosPage] = useState(1);
-  const [permisoCobrosTotalPages, setPermisoCobrosTotalPages] = useState(1);
-
   // State for "Pagos de Reses"
   const [resesPayments, setResesPayments] = useState([]);
   const [loadingReses, setLoadingReses] = useState(true);
   const [errorReses, setErrorReses] = useState(null);
   const [resesPage, setResesPage] = useState(1);
   const [resesTotalPages, setResesTotalPages] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
 
+  // State for "Pagos de Guías"
+  const [guiasPayments, setGuiasPayments] = useState([]);
+  const [loadingGuias, setLoadingGuias] = useState(true);
+  const [errorGuias, setErrorGuias] = useState(null);
+  const [guiasPage, setGuiasPage] = useState(1);
+  const [guiasTotalPages, setGuiasTotalPages] = useState(1);
+
+  const [searchTerm, setSearchTerm] = useState('');
   const [limit] = useState(10); // Common limit for all
 
   useEffect(() => {
@@ -72,44 +65,6 @@ const PagosRealizados = () => {
   }, [view, paymentsPage, limit, searchTerm]);
 
   useEffect(() => {
-    const getCobros = async () => {
-      setLoadingCobros(true);
-      try {
-        const data = await fetchCobrosEnviados(cobrosPage, limit);
-        setSentCobros(data.data);
-        setCobrosTotalPages(data.total_pages);
-      } catch (err) {
-        setErrorCobros("Error al cargar los cobros enviados: " + err.message);
-      } finally {
-        setLoadingCobros(false);
-      }
-    };
-
-    if (view === 'enviados_inscripciones') {
-      getCobros();
-    }
-  }, [view, cobrosPage, limit]);
-
-  useEffect(() => {
-    const getPermisoCobros = async () => {
-      setLoadingPermisoCobros(true);
-      try {
-        const data = await fetchPermisoCobrosEnviados(permisoCobrosPage, limit);
-        setSentPermisoCobros(data.data);
-        setPermisoCobrosTotalPages(data.total_pages);
-      } catch (err) {
-        setErrorPermisoCobros("Error al cargar los cobros de permisos enviados: " + err.message);
-      } finally {
-        setLoadingPermisoCobros(false);
-      }
-    };
-
-    if (view === 'enviados_permisos') {
-      getPermisoCobros();
-    }
-  }, [view, permisoCobrosPage, limit]);
-
-  useEffect(() => {
     const getResesPayments = async () => {
       setLoadingReses(true);
       try {
@@ -127,6 +82,25 @@ const PagosRealizados = () => {
       getResesPayments();
     }
   }, [view, resesPage, limit]);
+
+  useEffect(() => {
+    const getGuiasPayments = async () => {
+      setLoadingGuias(true);
+      try {
+        const data = await fetchGuiasPagos(guiasPage, limit);
+        setGuiasPayments(data.data);
+        setGuiasTotalPages(data.total_pages);
+      } catch (err) {
+        setErrorGuias("Error al cargar los pagos de guías: " + err.message);
+      } finally {
+        setLoadingGuias(false);
+      }
+    };
+
+    if (view === 'guias') {
+      getGuiasPayments();
+    }
+  }, [view, guiasPage, limit]);
 
   const renderPaymentsTable = () => {
     if (loadingPayments) return <div className="container">Cargando pagos...</div>;
@@ -178,94 +152,6 @@ const PagosRealizados = () => {
     );
   };
 
-  const renderCobrosTable = () => {
-    if (loadingCobros) return <div className="container">Cargando cobros enviados...</div>;
-    if (errorCobros) return <div className="container error-message">{errorCobros}</div>;
-    return (
-      <>
-        {sentCobros.length === 0 ? (
-          <p>No se encontraron cobros enviados.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="payments-table">
-              <thead>
-                <tr>
-                  <th>ID de Inscripción</th>
-                  <th>Email Enviado</th>
-                  <th>Monto Enviado</th>
-                  <th>Fecha de Envío</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sentCobros.map((cobro) => (
-                  <tr key={cobro.id}>
-                    <td>{cobro.inscription_id}</td>
-                    <td>{cobro.email}</td>
-                    <td>${cobro.amount ? cobro.amount.toFixed(2) : '0.00'}</td>
-                    <td>{formatDate(cobro.date_sent)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="pagination-controls">
-              <button onClick={() => setCobrosPage(p => Math.max(p - 1, 1))} disabled={cobrosPage === 1}>
-                Anterior
-              </button>
-              <span>Página {cobrosPage} de {cobrosTotalPages}</span>
-              <button onClick={() => setCobrosPage(p => Math.min(p + 1, cobrosTotalPages))} disabled={cobrosPage === cobrosTotalPages}>
-                Siguiente
-              </button>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  };
-
-  const renderPermisoCobrosTable = () => {
-    if (loadingPermisoCobros) return <div className="container">Cargando cobros de permisos enviados...</div>;
-    if (errorPermisoCobros) return <div className="container error-message">{errorPermisoCobros}</div>;
-    return (
-      <>
-        {sentPermisoCobros.length === 0 ? (
-          <p>No se encontraron cobros de permisos enviados.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="payments-table">
-              <thead>
-                <tr>
-                  <th>ID de Permiso</th>
-                  <th>Email Enviado</th>
-                  <th>Monto Enviado</th>
-                  <th>Fecha de Envío</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sentPermisoCobros.map((cobro) => (
-                  <tr key={cobro.id}>
-                    <td>{cobro.permiso_id}</td>
-                    <td>{cobro.email}</td>
-                    <td>${cobro.amount ? cobro.amount.toFixed(2) : '0.00'}</td>
-                    <td>{formatDate(cobro.date_sent)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="pagination-controls">
-              <button onClick={() => setPermisoCobrosPage(p => Math.max(p - 1, 1))} disabled={permisoCobrosPage === 1}>
-                Anterior
-              </button>
-              <span>Página {permisoCobrosPage} de {permisoCobrosTotalPages}</span>
-              <button onClick={() => setPermisoCobrosPage(p => Math.min(p + 1, permisoCobrosTotalPages))} disabled={permisoCobrosPage === permisoCobrosTotalPages}>
-                Siguiente
-              </button>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  };
-
   const renderResesPaymentsTable = () => {
     if (loadingReses) return <div className="container">Cargando pagos de reses...</div>;
     if (errorReses) return <div className="container error-message">{errorReses}</div>;
@@ -291,7 +177,7 @@ const PagosRealizados = () => {
                   <tr key={p.res_id}>
                     <td style={{ fontWeight: 'bold' }}>{p.res_id}</td>
                     <td>{p.nombre}</td>
-                    <td>{p.especie} ({p.cantidad})</td>
+                    <td>{p.especie}</td>
                     <td style={{ color: '#166534', fontWeight: 'bold' }}>
                       ${p.amount ? p.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '0.00'}
                     </td>
@@ -307,6 +193,56 @@ const PagosRealizados = () => {
               </button>
               <span>Página {resesPage} de {resesTotalPages}</span>
               <button onClick={() => setResesPage(p => Math.min(p + 1, resesTotalPages))} disabled={resesPage === resesTotalPages}>
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const renderGuiasPaymentsTable = () => {
+    if (loadingGuias) return <div className="container">Cargando pagos de guías...</div>;
+    if (errorGuias) return <div className="container error-message">{errorGuias}</div>;
+    return (
+      <>
+        {guiasPayments.length === 0 ? (
+          <p>No se encontraron pagos de guías marcados como "Pagado".</p>
+        ) : (
+          <div className="table-responsive">
+            <table className="payments-table">
+              <thead>
+                <tr>
+                  <th>ID Guía</th>
+                  <th>Cazador / Solicitante</th>
+                  <th>Especie</th>
+                  <th>Monto Pagado</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {guiasPayments.map((p) => (
+                  <tr key={p.guia_id}>
+                    <td style={{ fontWeight: 'bold' }}>{p.guia_id}</td>
+                    <td>{p.nombre}</td>
+                    <td>{p.especie}</td>
+                    <td style={{ color: '#166534', fontWeight: 'bold' }}>
+                      ${p.amount ? p.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '0.00'}
+                    </td>
+                    <td>{p.fecha}</td>
+                    <td>{formatStatus('approved')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="pagination-controls">
+              <button onClick={() => setGuiasPage(p => Math.max(p - 1, 1))} disabled={guiasPage === 1}>
+                Anterior
+              </button>
+              <span>Página {guiasPage} de {guiasTotalPages}</span>
+              <button onClick={() => setGuiasPage(p => Math.min(p + 1, guiasTotalPages))} disabled={guiasPage === guiasTotalPages}>
                 Siguiente
               </button>
             </div>
@@ -333,6 +269,12 @@ const PagosRealizados = () => {
             Pagos de Reses
           </button>
           <button
+            onClick={() => setView('guias')}
+            className={`nav-item ${view === 'guias' ? 'active' : ''}`}
+          >
+            Pagos de Guías
+          </button>
+          <button
             onClick={() => setView('logs')}
             className={`nav-item ${view === 'logs' ? 'active' : ''}`}
           >
@@ -355,11 +297,13 @@ const PagosRealizados = () => {
       <div className="glass-card" style={{ padding: '2rem' }}>
         <h2 className="app-title" style={{ marginBottom: '2rem', fontSize: '1.5rem', textAlign: 'center' }}>
           {view === 'realizados' ? 'Historial de Pagos' :
-            view === 'reses' ? 'Pagos de Reses' : 'Logs del Sistema'}
+            view === 'reses' ? 'Pagos de Reses' :
+              view === 'guias' ? 'Pagos de Guías de Traslado' : 'Logs del Sistema'}
         </h2>
 
         {view === 'realizados' ? renderPaymentsTable() :
-          view === 'reses' ? renderResesPaymentsTable() : <Logs />}
+          view === 'reses' ? renderResesPaymentsTable() :
+            view === 'guias' ? renderGuiasPaymentsTable() : <Logs />}
       </div>
     </div>
   );

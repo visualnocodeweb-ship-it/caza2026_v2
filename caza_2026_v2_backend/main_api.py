@@ -9,7 +9,7 @@ import datetime
 import pandas as pd # Import pandas for data manipulation
 from sqlalchemy import select, func, desc
 from .database import database, engine, metadata
-from .models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items, reses_details
+from .models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items, reses_details, guias_details
 from . import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
 import math # Needed for ceil
 from pydantic import BaseModel
@@ -707,7 +707,33 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
         offset = (page - 1) * limit
         total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
 
-        paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+        paginated_df = df.iloc[offset : offset + limit]
+        page_indices = paginated_df['ID'].astype(str).tolist()
+
+        # 1. Obtener datos de pago de la DB para estos IDs
+        db_query = select(guias_details).where(guias_details.c.guia_id.in_(page_indices))
+        db_records = await database.fetch_all(db_query)
+        db_map = {str(r['guia_id']): dict(r) for r in db_records}
+
+        # 2. Obtener historial (logs) para estos IDs
+        # Buscamos eventos que contengan el ID de la guía en sus detalles o evento
+        # Para ser precisos, buscaremos logs cuyo evento contenga "Guía" y el ID
+        history_map = {}
+        for gid in page_indices:
+            log_query = select(logs).where(logs.c.event.ilike(f"%{gid}%")).order_by(desc(logs.c.timestamp))
+            log_records = await database.fetch_all(log_query)
+            history_map[gid] = [dict(r) for r in log_records]
+
+        paginated_data = []
+        for _, row in paginated_df.iterrows():
+            gid = str(row.get('ID'))
+            db_item = db_map.get(gid, {})
+            paginated_data.append({
+                **row.to_dict(),
+                "amount": db_item.get('amount', 0),
+                "is_paid": db_item.get('is_paid', False),
+                "history": history_map.get(gid, [])
+            })
 
         return {
             "data": paginated_data,
@@ -718,7 +744,7 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
         }
     except Exception as e:
         await log_activity('ERROR', 'get_guias_traslados_failed', f"Error al obtener guías de traslados: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener guías de traslados: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def generate_guia_completa_pdf(guia_id: str):
     try:
@@ -913,6 +939,113 @@ async def send_guia_email(guia_id: str):
         raise HTTPException(status_code=500, detail="Error al enviar el email")
 
     return {"status": "success", "message": f"Email enviado correctamente a {to_email}"}
+
+@app.get("/api/guias-traslados/stats", response_model=Dict[str, Any])
+async def get_guias_stats():
+    try:
+        # 1. Contar total de registros desde Sheets
+        sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+        df = sheets_services.read_sheet_data(sheet_id, "cabeza_1")
+        total_records = len(df) if not df.empty else 0
+
+        # 2. Calcular recaudación total sumando guias_details donde is_paid es True
+        # Filtrar solo IDs que existan en la hoja actual
+        valid_ids = [str(val) for val in df['ID'].dropna().unique()] if not df.empty else []
+        
+        revenue_query = select(func.sum(guias_details.c.amount)).where(
+            guias_details.c.is_paid == True,
+            guias_details.c.guia_id.in_(valid_ids)
+        )
+        total_revenue = await database.fetch_val(revenue_query) or 0
+
+        return {
+            "total_guias": total_records,
+            "total_revenue": total_revenue
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_guias_stats_fail', str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/guias-traslados/pago")
+async def save_guia_pago(request: Dict[str, Any]):
+    guia_id = request.get('guia_id')
+    amount = float(request.get('amount', 0))
+    is_paid = request.get('is_paid', False)
+    
+    if not guia_id:
+        raise HTTPException(status_code=400, detail="Falta guia_id")
+
+    try:
+        # Update or Insert using Postgres specific ON CONFLICT or a manual check
+        query = select(guias_details).where(guias_details.c.guia_id == guia_id)
+        existing = await database.fetch_one(query)
+
+        if existing:
+            update_query = guias_details.update().where(guias_details.c.guia_id == guia_id).values(
+                amount=amount,
+                is_paid=is_paid,
+                last_updated=datetime.datetime.now(datetime.timezone.utc)
+            )
+            await database.execute(update_query)
+        else:
+            insert_query = guias_details.insert().values(
+                guia_id=guia_id,
+                amount=amount,
+                is_paid=is_paid,
+                last_updated=datetime.datetime.now(datetime.timezone.utc)
+            )
+            await database.execute(insert_query)
+
+        await log_activity('INFO', f'Guía Pago: {guia_id}', f"Monto={amount}, Pagado={is_paid}")
+        return {"status": "success"}
+    except Exception as e:
+        await log_activity('ERROR', 'save_guia_pago_fail', str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/guias-traslados/cobro")
+async def send_guia_cobro(request: Dict[str, Any]):
+    guia_id = request.get('guia_id')
+    email = request.get('email')
+    amount = request.get('amount')
+    
+    if not all([guia_id, email, amount]):
+        raise HTTPException(status_code=400, detail="Faltan datos (guia_id, email o amount)")
+
+    try:
+        sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
+        subject = f"Cobro de Guía de Traslado - ID {guia_id}"
+        
+        # Cuerpo solicitado por el usuario con link de MP
+        html_content = f"""
+        <html>
+        <body>
+            <h2>Solicitud de Pago de Guía de Traslado</h2>
+            <p>Hola,</p>
+            <p>Por favor, realiza el pago de tu guía de traslado por un valor de <strong>${amount}</strong>.</p>
+            <p>Puedes pagar a través del siguiente enlace:</p>
+            <p><a href="https://link.mercadopago.com.ar/faunaneuquen" target="_blank">Pagar con Mercado Pago</a></p>
+            <br>
+            <p>Saludos,</p>
+            <p>Sistema de Control Caza 2026</p>
+        </body>
+        </html>
+        """
+
+        success = email_services.send_email(
+            to_email=email,
+            subject=subject,
+            html_content=html_content,
+            sender_email=sender_email
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Error al enviar el email de cobro")
+
+        await log_activity('INFO', f'Guía Cobro Enviado: {guia_id}', f"Email={email}, Monto={amount}")
+        return {"status": "success"}
+    except Exception as e:
+        await log_activity('ERROR', 'send_guia_cobro_fail', str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 class SendResesGuiaRequest(BaseModel):
     res_id: str
@@ -1816,7 +1949,23 @@ async def get_recaudaciones_stats():
             )
             recaudacion_reses = await database.fetch_val(total_reses_query) or 0.0
 
-        recaudacion_total = recaudacion_inscripciones + recaudacion_permisos + recaudacion_reses
+        # Recaudación total de Guías de Traslado
+        guias_sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+        guias_df = sheets_services.read_sheet_data(guias_sheet_id, "cabeza_1")
+        valid_guia_ids = []
+        if not guias_df.empty:
+            valid_guia_ids = [str(gid) for gid in guias_df['ID'].tolist() if gid]
+        
+        if not valid_guia_ids:
+            recaudacion_guias = 0.0
+        else:
+            total_guias_query = select(func.sum(guias_details.c.amount)).where(
+                guias_details.c.is_paid == True,
+                guias_details.c.guia_id.in_(valid_guia_ids)
+            )
+            recaudacion_guias = await database.fetch_val(total_guias_query) or 0.0
+
+        recaudacion_total = recaudacion_inscripciones + recaudacion_permisos + recaudacion_reses + recaudacion_guias
 
         # Recaudación de permisos por mes
         recaudacion_permisos_por_mes_query = select(
@@ -1833,17 +1982,64 @@ async def get_recaudaciones_stats():
         recaudacion_permisos_por_mes_raw = await database.fetch_all(recaudacion_permisos_por_mes_query)
         recaudacion_permisos_por_mes = [{"name": r["mes"], "total": float(r["total"])} for r in recaudacion_permisos_por_mes_raw]
 
-
         return {
             "recaudacion_total": recaudacion_total,
             "recaudacion_inscripciones": recaudacion_inscripciones,
             "recaudacion_permisos": recaudacion_permisos,
             "recaudacion_reses": recaudacion_reses,
+            "recaudacion_guias": recaudacion_guias,
             "recaudacion_permisos_por_mes": recaudacion_permisos_por_mes
         }
     except Exception as e:
         await log_activity('ERROR', 'get_recaudaciones_stats_failed', f"Error al obtener estadísticas de recaudaciones: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener estadísticas de recaudaciones: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/guias-traslados/pagos", response_model=Dict[str, Any])
+async def get_guias_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
+    try:
+        # 1. Obtener de DB id_paid=True
+        query = select(guias_details).where(guias_details.c.is_paid == True)
+        db_records = await database.fetch_all(query)
+        db_dict = {str(r['guia_id']): dict(r) for r in db_records}
+
+        if not db_dict:
+            return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        # 2. Leer Sheets para nombre
+        sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+        df = sheets_services.read_sheet_data(sheet_id, "cabeza_1")
+        
+        enriched_data = []
+        if not df.empty:
+            for _, row in df.iterrows():
+                gid = str(row.get('ID'))
+                if gid in db_dict:
+                    item = db_dict[gid]
+                    enriched_data.append({
+                        "guia_id": gid,
+                        "nombre": row.get('Nombre', 'N/A'),
+                        "especie": row.get('Especies', 'N/A'),
+                        "fecha": row.get('Fecha', 'N/A'),
+                        "amount": item.get('amount', 0),
+                        "is_paid": True
+                    })
+
+        enriched_data.reverse()
+        total_records = len(enriched_data)
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+        offset = (page - 1) * limit
+        paginated_data = enriched_data[offset:offset + limit]
+
+        return {
+            "data": paginated_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_guias_pagos_fail', str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/log-sent-item", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED)
 async def log_sent_item_endpoint(item_data: SentItemEntry):
@@ -1860,6 +2056,91 @@ async def log_sent_item_endpoint(item_data: SentItemEntry):
     except Exception as e:
         await log_activity('ERROR', 'log_sent_item_failed', f"Error al registrar ítem enviado: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al registrar ítem enviado: {e}")
+
+# --- Guía Endpoints ---
+@app.post("/api/guias", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_guia(guia_data: GuiaCreate):
+    await log_activity('INFO', 'create_guia_request', f'Solicitud para crear guía: {guia_data.guia_id}')
+    try:
+        # Verificar si la guía ya existe en la base de datos
+        existing_guia = await database.fetch_one(guias_details.select().where(guias_details.c.guia_id == guia_data.guia_id))
+        if existing_guia:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"La guía con ID {guia_data.guia_id} ya existe.")
+
+        # Insertar la nueva guía
+        query = guias_details.insert().values(
+            guia_id=guia_data.guia_id,
+            amount=guia_data.amount,
+            is_paid=guia_data.is_paid,
+            date_created=datetime.datetime.now(datetime.timezone.utc),
+            date_updated=datetime.datetime.now(datetime.timezone.utc)
+        )
+        last_record_id = await database.execute(query)
+        await log_activity('INFO', 'guia_created', f"Guía {guia_data.guia_id} creada exitosamente.")
+        return {"message": "Guía creada exitosamente", "id": last_record_id, "guia_id": guia_data.guia_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'create_guia_failed', f"Error al crear guía: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al crear guía: {e}")
+
+@app.get("/api/guias/{guia_id}", response_model=Dict[str, Any])
+async def get_guia(guia_id: str):
+    await log_activity('INFO', 'get_guia_request', f'Solicitud para obtener guía: {guia_id}')
+    try:
+        query = guias_details.select().where(guias_details.c.guia_id == guia_id)
+        guia = await database.fetch_one(query)
+        if not guia:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Guía con ID {guia_id} no encontrada.")
+        return dict(guia)
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'get_guia_failed', f"Error al obtener guía: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener guía: {e}")
+
+@app.put("/api/guias/{guia_id}", response_model=Dict[str, Any])
+async def update_guia(guia_id: str, guia_update: GuiaUpdate):
+    await log_activity('INFO', 'update_guia_request', f'Solicitud para actualizar guía: {guia_id}')
+    try:
+        # Verificar si la guía existe
+        existing_guia = await database.fetch_one(guias_details.select().where(guias_details.c.guia_id == guia_id))
+        if not existing_guia:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Guía con ID {guia_id} no encontrada.")
+
+        update_data = guia_update.dict(exclude_unset=True)
+        if not update_data:
+            return {"message": "No hay datos para actualizar."}
+
+        update_data["date_updated"] = datetime.datetime.now(datetime.timezone.utc)
+        query = guias_details.update().where(guias_details.c.guia_id == guia_id).values(update_data)
+        await database.execute(query)
+        await log_activity('INFO', 'guia_updated', f"Guía {guia_id} actualizada exitosamente.")
+        return {"message": "Guía actualizada exitosamente", "guia_id": guia_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'update_guia_failed', f"Error al actualizar guía: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al actualizar guía: {e}")
+
+@app.delete("/api/guias/{guia_id}", response_model=Dict[str, str])
+async def delete_guia(guia_id: str):
+    await log_activity('INFO', 'delete_guia_request', f'Solicitud para eliminar guía: {guia_id}')
+    try:
+        # Verificar si la guía existe
+        existing_guia = await database.fetch_one(guias_details.select().where(guias_details.c.guia_id == guia_id))
+        if not existing_guia:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Guía con ID {guia_id} no encontrada.")
+
+        query = guias_details.delete().where(guias_details.c.guia_id == guia_id)
+        await database.execute(query)
+        await log_activity('INFO', 'guia_deleted', f"Guía {guia_id} eliminada exitosamente.")
+        return {"message": "Guía eliminada exitosamente."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'delete_guia_failed', f"Error al eliminar guía: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al eliminar guía: {e}")
 
 @app.post("/api/send-payment-link", response_model=Dict[str, str])
 async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):

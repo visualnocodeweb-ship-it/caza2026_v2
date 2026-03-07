@@ -554,3 +554,66 @@ export const sendGuiaEmail = async (guiaId) => {
     throw error;
   }
 };
+
+export const fetchGuiasStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/guias-traslados/stats`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching guias stats:", error);
+    throw error;
+  }
+};
+
+export const saveGuiaPago = async (pagoData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/guias-traslados/pago`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pagoData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error saving guia pago:", error);
+    throw error;
+  }
+};
+
+export const sendGuiaCobro = async (cobroData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/guias-traslados/cobro`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cobroData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error sending guia cobro:", error);
+    throw error;
+  }
+};
+
+export const fetchGuiasPagos = async (page = 1, limit = 10) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/guias-traslados/pagos?page=${page}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching guias payments:", error);
+    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+  }
+};
