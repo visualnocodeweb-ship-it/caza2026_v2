@@ -111,6 +111,25 @@ class SendPermisoEmailRequest(BaseModel):
     email: str
     nombre_apellido: str
 
+class GuiaCreate(BaseModel):
+    guia_id: str
+    amount: float = 0.0
+    is_paid: bool = False
+
+class GuiaUpdate(BaseModel):
+    amount: Optional[float] = None
+    is_paid: Optional[bool] = None
+
+class GuiaPagoRequest(BaseModel):
+    guia_id: str
+    amount: float
+    is_paid: bool
+
+class GuiaCobroRequest(BaseModel):
+    guia_id: str
+    email: str
+    amount: float
+
 # --- Logging Centralizado ---
 async def log_activity(level: str, event: str, details: str = ""):
     """Guarda un registro de actividad en la base de datos."""
@@ -967,10 +986,10 @@ async def get_guias_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/guias-traslados/pago")
-async def save_guia_pago(request: Dict[str, Any]):
-    guia_id = request.get('guia_id')
-    amount = float(request.get('amount', 0))
-    is_paid = request.get('is_paid', False)
+async def save_guia_pago(request: GuiaPagoRequest):
+    guia_id = request.guia_id
+    amount = request.amount
+    is_paid = request.is_paid
     
     if not guia_id:
         raise HTTPException(status_code=400, detail="Falta guia_id")
@@ -1003,10 +1022,10 @@ async def save_guia_pago(request: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/guias-traslados/cobro")
-async def send_guia_cobro(request: Dict[str, Any]):
-    guia_id = request.get('guia_id')
-    email = request.get('email')
-    amount = request.get('amount')
+async def send_guia_cobro(request: GuiaCobroRequest):
+    guia_id = request.guia_id
+    email = request.email
+    amount = request.amount
     
     if not all([guia_id, email, amount]):
         raise HTTPException(status_code=400, detail="Faltan datos (guia_id, email o amount)")
