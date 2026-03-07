@@ -759,27 +759,26 @@ async def generate_guia_completa_pdf(guia_id: str):
             pdf = FPDF()
             pdf.add_page()
             
-            # Membrete
+            # Membrete - ARRIBA DEL TODO
             assets_path = os.path.join(os.path.dirname(__file__), "assets")
             membrete_path = os.path.join(assets_path, "membrete.png")
             if os.path.exists(membrete_path):
                 pdf.image(membrete_path, x=10, y=10, w=190)
-                pdf.ln(25) # Espacio después del membrete
+                pdf.ln(30) # Espacio después del membrete
             else:
                 pdf.ln(10)
 
-            # Título
+            # Título - DEBAJO DEL MEMBRETE
             pdf.set_font("helvetica", "B", 14)
             pdf.cell(0, 10, "Guía de Traslado de Cabezas - Dirección de Fauna Neuquén", ln=True, align="C")
             pdf.ln(5)
 
-            # Parte 1 - cabeza_1
+            # Sección: DATOS GENERALES (Sin "Parte 1")
             pdf.set_font("helvetica", "B", 11)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 8, "PARTE 1 - DATOS GENERALES", ln=True, fill=True)
+            pdf.cell(0, 8, "DATOS GENERALES", ln=True, fill=True)
             pdf.set_font("helvetica", "", 9)
             
-            # ELIMINADO: NI según pedido del usuario
             fields1 = ["ID", "ACM", "Tipo ACM", "Especies", "Fecha", "Nombre", "DNI", "Correo", "Telefono", "Numero permiso caza"]
             for field in fields1:
                 val = str(data1.get(field, "N/A"))
@@ -790,51 +789,42 @@ async def generate_guia_completa_pdf(guia_id: str):
             
             pdf.ln(4)
 
-            # Parte 2 - cabeza_2
-            pdf.set_font("helvetica", "B", 11)
-            pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 8, "PARTE 2 - DETALLES TÉCNICOS", ln=True, fill=True)
-            pdf.set_font("helvetica", "", 9)
-
+            # Sección Técnica: Solo Precinto y Agente (Sin "Parte 2" ni detalles técnicos como puntas, peso, etc.)
             if data2:
-                # Campos específicos solicitados por el usuario
-                fields2 = [
-                    'fecha', 'puntas totales', 'asta izquierda', 'asta derecha', 'puntas quebradas', 
-                    'puntas faltantes', 'largo asta derecha', 'largo asta izquierda', 'apertura', 
-                    'peso', 'desgaste relativo', 'circunferencia roseta derecha', 
-                    'circunferencia roseta izquierda', 'precinto', 'agente'
-                ]
-                for key in fields2:
+                pdf.set_font("helvetica", "B", 11)
+                pdf.set_fill_color(240, 240, 240)
+                pdf.cell(0, 8, "DETALLES TÉCNICOS", ln=True, fill=True)
+                pdf.set_font("helvetica", "", 9)
+
+                # Solo Precinto y Agente según pedido final
+                for key in ['precinto', 'agente']:
                     val = data2.get(key, "N/A")
                     pdf.set_font("helvetica", "B", 9)
                     pdf.write(7, f"{key.capitalize()}: ")
                     pdf.set_font("helvetica", "", 9)
                     pdf.write(7, f"{str(val)}\n")
-            else:
-                pdf.cell(0, 8, "No se encontraron detalles de la Parte 2 para este ID.", ln=True)
+                
+                pdf.ln(4)
 
-            # Imagen del registro
+            # Registro Fotográfico
             img_url = data1.get('Imagen')
             if img_url:
                 try:
-                    await log_activity('INFO', 'pdf_gen_img_start', f"Descargando imagen: {img_url}")
                     response = requests.get(img_url, timeout=10)
                     if response.status_code == 200:
                         img_data = BytesIO(response.content)
-                        pdf.ln(5)
                         pdf.set_font("helvetica", "B", 10)
                         pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
-                        pdf.image(img_data, w=80) 
-                        await log_activity('INFO', 'pdf_gen_img_success', "Imagen añadida al PDF")
+                        # Reducimos un poco el ancho para asegurar que entre todo en una hoja
+                        pdf.image(img_data, w=70) 
+                        pdf.ln(5)
                 except Exception as e:
                     await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
 
-            # Firma (al final)
+            # Firma (al final, pegada al contenido para ahorrar espacio)
             firma_path = os.path.join(assets_path, "firma.png")
             if os.path.exists(firma_path):
-                # Posicionar la firma un poco más abajo
-                pdf.ln(10)
-                pdf.image(firma_path, w=50) 
+                pdf.image(firma_path, w=45) 
 
             pdf_bytes = bytes(pdf.output())
             await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id}")
