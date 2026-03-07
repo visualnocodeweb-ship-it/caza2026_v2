@@ -515,3 +515,21 @@ export const fetchLogs = async (page = 1, limit = 15) => {
     return { data: [], total_records: 0, page: 1, limit: 15, total_pages: 0 };
   }
 };
+
+export const fetchGuiasTraslados = async (page = 1, limit = 10, search = '') => {
+  try {
+    let url = `${API_BASE_URL}/guias-traslados?page=${page}&limit=${limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching guias traslados:", error);
+    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+  }
+};

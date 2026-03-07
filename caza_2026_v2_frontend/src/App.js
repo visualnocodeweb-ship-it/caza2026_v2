@@ -15,6 +15,7 @@ import ResesStats from './pages/dashboard/ResesStats';
 import NotFound from './pages/NotFound';
 import PagosRealizados from './pages/PagosRealizados';
 import Reses from './pages/Reses';
+import GuiasTraslados from './pages/GuiasTraslados';
 
 const App = () => {
   return (
@@ -49,6 +50,11 @@ const App = () => {
             <Route path="/reses" element={
               <PrivateRoute>
                 <Reses />
+              </PrivateRoute>
+            } />
+            <Route path="/guias-traslados" element={
+              <PrivateRoute>
+                <GuiasTraslados />
               </PrivateRoute>
             } />
 

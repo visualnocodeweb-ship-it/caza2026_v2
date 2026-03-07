@@ -678,6 +678,45 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         await log_activity('ERROR', 'get_reses_failed', f"Error al obtener reses: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener reses: {e}")
 
+@app.get("/api/guias-traslados", response_model=Dict[str, Any])
+async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+    await log_activity('INFO', 'get_guias_traslados_request', f'Solicitud de guías de traslados - Página: {page}, Límite: {limit}, Búsqueda: {search}')
+    try:
+        # Usamos el Sheet ID proporcionado por el usuario para esta sección específica
+        sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+        tab_name = "cabeza_1"
+        
+        df = sheets_services.read_sheet_data(sheet_id, tab_name)
+
+        if df.empty:
+            return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        # Invertir para que lo más nuevo esté arriba
+        df = df.iloc[::-1]
+
+        # Aplicar búsqueda global si hay término
+        if search and str(search).strip():
+            search_str = str(search).lower()
+            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
+            df = df[mask]
+
+        total_records = len(df)
+        offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+
+        paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+
+        return {
+            "data": paginated_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_guias_traslados_failed', f"Error al obtener guías de traslados: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener guías de traslados: {e}")
+
 class SendResesGuiaRequest(BaseModel):
     res_id: str
     email: str
