@@ -722,101 +722,130 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
 
 async def generate_guia_completa_pdf(guia_id: str):
     try:
+        await log_activity('INFO', 'pdf_gen_start', f"Iniciando generación de PDF para guía: {guia_id}")
         sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
-        df1 = sheets_services.read_sheet_data(sheet_id, "cabeza_1")
-        df2 = sheets_services.read_sheet_data(sheet_id, "cabeza_2")
+        
+        # 1. Leer datos
+        try:
+            df1 = sheets_services.read_sheet_data(sheet_id, "cabeza_1")
+            df2 = sheets_services.read_sheet_data(sheet_id, "cabeza_2")
+        except Exception as e:
+            await log_activity('ERROR', 'pdf_gen_sheet_error', f"Error leyendo sheets: {e}")
+            return None, f"Error leyendo datos de las hojas: {e}"
 
         if df1.empty:
+            await log_activity('WARNING', 'pdf_gen_empty_cabeza1', "cabeza_1 está vacía")
             return None, "No se encontraron datos en cabeza_1"
 
-        # Buscar en cabeza_1
-        # El ID de cabeza_1 se llama 'ID' (en mayúsculas por lo visto en logs anteriores)
+        # 2. Buscar en cabeza_1
         row1 = df1[df1['ID'].astype(str) == str(guia_id)]
         if row1.empty:
+            await log_activity('WARNING', 'pdf_gen_not_found_cabeza1', f"Guía {guia_id} no encontrada en cabeza_1")
             return None, f"No se encontró la guía {guia_id} en cabeza_1"
         
         data1 = row1.iloc[0].to_dict()
+        await log_activity('INFO', 'pdf_gen_data1_found', f"Datos de cabeza_1 encontrados para {guia_id}")
 
-        # Buscar en cabeza_2 (aquí la columna se llama 'id' en minúsculas)
+        # 3. Buscar en cabeza_2
         data2 = {}
         if not df2.empty:
             row2 = df2[df2['id'].astype(str) == str(guia_id)]
             if not row2.empty:
                 data2 = row2.iloc[0].to_dict()
+                await log_activity('INFO', 'pdf_gen_data2_found', f"Datos de cabeza_2 encontrados para {guia_id}")
 
-        # Generar PDF
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 16)
-        pdf.cell(0, 10, "GUÍA DE TRASLADO COMPLETA (PARTE 1 Y 2)", ln=True, align="C")
-        pdf.ln(5)
+        # 4. Generar PDF
+        try:
+            pdf = FPDF()
+            pdf.add_page()
+            # fpdf2 usa 'helvetica' por defecto si Arial no carga bien
+            pdf.set_font("helvetica", "B", 16)
+            pdf.cell(0, 10, "GUÍA DE TRASLADO COMPLETA (PARTE 1 Y 2)", ln=True, align="C")
+            pdf.ln(5)
 
-        # Parte 1 - cabeza_1
-        pdf.set_font("Arial", "B", 12)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 10, "PARTE 1 - DATOS GENERALES", ln=True, fill=True)
-        pdf.set_font("Arial", "", 10)
-        
-        fields1 = ["NI", "ID", "ACM", "Tipo ACM", "Especies", "Fecha", "Nombre", "DNI", "Correo", "Telefono", "Numero permiso caza"]
-        for field in fields1:
-            val = str(data1.get(field, "N/A"))
-            pdf.set_font("Arial", "B", 10)
-            pdf.write(10, f"{field}: ")
-            pdf.set_font("Arial", "", 10)
-            pdf.write(10, f"{val}\n")
-        
-        pdf.ln(5)
+            # Parte 1 - cabeza_1
+            pdf.set_font("helvetica", "B", 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, "PARTE 1 - DATOS GENERALES", ln=True, fill=True)
+            pdf.set_font("helvetica", "", 10)
+            
+            fields1 = ["NI", "ID", "ACM", "Tipo ACM", "Especies", "Fecha", "Nombre", "DNI", "Correo", "Telefono", "Numero permiso caza"]
+            for field in fields1:
+                val = str(data1.get(field, "N/A"))
+                pdf.set_font("helvetica", "B", 10)
+                pdf.write(10, f"{field}: ")
+                pdf.set_font("helvetica", "", 10)
+                pdf.write(10, f"{val}\n")
+            
+            pdf.ln(5)
 
-        # Parte 2 - cabeza_2
-        pdf.set_font("Arial", "B", 12)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 10, "PARTE 2 - DETALLES TÉCNICOS", ln=True, fill=True)
-        pdf.set_font("Arial", "", 10)
+            # Parte 2 - cabeza_2
+            pdf.set_font("helvetica", "B", 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, "PARTE 2 - DETALLES TÉCNICOS", ln=True, fill=True)
+            pdf.set_font("helvetica", "", 10)
 
-        if data2:
-            # Usamos las columnas encontradas anteriormente: 'fecha', 'puntas totales', 'precinto', 'agente'
-            for key, val in data2.items():
-                if key.lower() != 'id':
-                    pdf.set_font("Arial", "B", 10)
-                    pdf.write(10, f"{key.capitalize()}: ")
-                    pdf.set_font("Arial", "", 10)
-                    pdf.write(10, f"{str(val)}\n")
-        else:
-            pdf.cell(0, 10, "No se encontraron detalles de la Parte 2 para este ID.", ln=True)
+            if data2:
+                for key, val in data2.items():
+                    if key.lower() != 'id':
+                        pdf.set_font("helvetica", "B", 10)
+                        pdf.write(10, f"{key.capitalize()}: ")
+                        pdf.set_font("helvetica", "", 10)
+                        pdf.write(10, f"{str(val)}\n")
+            else:
+                pdf.cell(0, 10, "No se encontraron detalles de la Parte 2 para este ID.", ln=True)
 
-        # Imagen
-        img_url = data1.get('Imagen')
-        if img_url:
-            try:
-                response = requests.get(img_url, timeout=10)
-                if response.status_code == 200:
-                    img_data = BytesIO(response.content)
-                    pdf.ln(10)
-                    pdf.set_font("Arial", "B", 12)
-                    pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", ln=True)
-                    # Intentamos insertar la imagen. FPDF soporta BytesIO
-                    pdf.image(img_data, w=100)
-            except Exception as e:
-                print(f"Error al incluir imagen en PDF: {e}")
+            # 5. Imagen
+            img_url = data1.get('Imagen')
+            if img_url:
+                try:
+                    await log_activity('INFO', 'pdf_gen_img_start', f"Descargando imagen: {img_url}")
+                    response = requests.get(img_url, timeout=10)
+                    if response.status_code == 200:
+                        img_data = BytesIO(response.content)
+                        pdf.ln(10)
+                        pdf.set_font("helvetica", "B", 12)
+                        pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", ln=True)
+                        pdf.image(img_data, w=100)
+                        await log_activity('INFO', 'pdf_gen_img_success', "Imagen añadida al PDF")
+                    else:
+                        await log_activity('WARNING', 'pdf_gen_img_download_fail', f"Status code imagen: {response.status_code}")
+                except Exception as e:
+                    await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
 
-        return pdf.output(dest='S'), None
+            # En fpdf2, llamar a output() sin argumentos devuelve los bytes. 
+            # dest='S' es para fpdf antiguo.
+            pdf_bytes = pdf.output()
+            await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id}")
+            return pdf_bytes, None
+            
+        except Exception as e:
+            await log_activity('ERROR', 'pdf_gen_fpdf_error', f"Error en lógica FPDF: {e}")
+            return None, f"Error al construir el PDF: {e}"
+
     except Exception as e:
-        print(f"Error en generate_guia_completa_pdf: {e}")
+        await log_activity('ERROR', 'pdf_gen_fatal_error', f"Error fatal en PDF: {e}")
         return None, str(e)
 
 @app.get("/api/guias-traslados/{guia_id}/pdf")
 async def get_guia_pdf(guia_id: str):
-    pdf_content, error = await generate_guia_completa_pdf(guia_id)
-    if error:
-        raise HTTPException(status_code=500, detail=error)
-    
-    # fpdf2 retorna bytes si dest='S'
-    from fastapi.responses import Response
-    return Response(
-        content=pdf_content,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename=Guia_Completa_{guia_id}.pdf"}
-    )
+    try:
+        pdf_content, error = await generate_guia_completa_pdf(guia_id)
+        if error:
+            await log_activity('ERROR', 'get_guia_pdf_error', f"{error}")
+            raise HTTPException(status_code=500, detail=error)
+        
+        from fastapi.responses import Response
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename=Guia_Completa_{guia_id}.pdf"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        await log_activity('ERROR', 'get_guia_pdf_endpoint_fail', f"{e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/guias-traslados/{guia_id}/email")
 async def send_guia_email(guia_id: str):
