@@ -759,12 +759,13 @@ async def generate_guia_completa_pdf(guia_id: str):
             pdf = FPDF()
             pdf.add_page()
             
-            # Membrete - ARRIBA DEL TODO
+            # Membrete - MÁS PEQUEÑO Y ARRIBA
             assets_path = os.path.join(os.path.dirname(__file__), "assets")
             membrete_path = os.path.join(assets_path, "membrete.png")
             if os.path.exists(membrete_path):
-                pdf.image(membrete_path, x=10, y=10, w=190)
-                pdf.ln(30) # Espacio después del membrete
+                # Achicamos el ancho de 190 a 140 y centramos un poco (x=35 aprox para centrar en A4 que tiene 210)
+                pdf.image(membrete_path, x=35, y=5, w=140)
+                pdf.ln(35) # Más espacio para que el título no se solape
             else:
                 pdf.ln(10)
 
@@ -773,7 +774,7 @@ async def generate_guia_completa_pdf(guia_id: str):
             pdf.cell(0, 10, "Guía de Traslado de Cabezas - Dirección de Fauna Neuquén", ln=True, align="C")
             pdf.ln(5)
 
-            # Sección: DATOS GENERALES (Sin "Parte 1")
+            # Sección: DATOS GENERALES
             pdf.set_font("helvetica", "B", 11)
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(0, 8, "DATOS GENERALES", ln=True, fill=True)
@@ -789,14 +790,13 @@ async def generate_guia_completa_pdf(guia_id: str):
             
             pdf.ln(4)
 
-            # Sección Técnica: Solo Precinto y Agente (Sin "Parte 2" ni detalles técnicos como puntas, peso, etc.)
+            # Sección Técnica: Solo Precinto y Agente
             if data2:
                 pdf.set_font("helvetica", "B", 11)
                 pdf.set_fill_color(240, 240, 240)
                 pdf.cell(0, 8, "DETALLES TÉCNICOS", ln=True, fill=True)
                 pdf.set_font("helvetica", "", 9)
 
-                # Solo Precinto y Agente según pedido final
                 for key in ['precinto', 'agente']:
                     val = data2.get(key, "N/A")
                     pdf.set_font("helvetica", "B", 9)
@@ -815,42 +815,46 @@ async def generate_guia_completa_pdf(guia_id: str):
                         img_data = BytesIO(response.content)
                         pdf.set_font("helvetica", "B", 10)
                         pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
-                        # Reducimos un poco el ancho para asegurar que entre todo en una hoja
-                        pdf.image(img_data, w=70) 
+                        pdf.image(img_data, w=60) 
                         pdf.ln(5)
                 except Exception as e:
                     await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
 
-            # Firma (al final, pegada al contenido para ahorrar espacio)
+            # Firma
             firma_path = os.path.join(assets_path, "firma.png")
             if os.path.exists(firma_path):
-                pdf.image(firma_path, w=45) 
+                pdf.image(firma_path, w=40) 
 
             pdf_bytes = bytes(pdf.output())
             await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id}")
-            return pdf_bytes, None
+            # Retornamos los bytes y el nombre para el archivo
+            return pdf_bytes, data1.get('Nombre', 'Sin_Nombre'), None
             
         except Exception as e:
             await log_activity('ERROR', 'pdf_gen_fpdf_error', f"Error en lógica FPDF: {e}")
-            return None, f"Error al construir el PDF: {e}"
+            return None, None, f"Error al construir el PDF: {e}"
 
     except Exception as e:
         await log_activity('ERROR', 'pdf_gen_fatal_error', f"Error fatal en PDF: {e}")
-        return None, str(e)
+        return None, None, str(e)
 
 @app.get("/api/guias-traslados/{guia_id}/pdf")
 async def get_guia_pdf(guia_id: str):
     try:
-        pdf_content, error = await generate_guia_completa_pdf(guia_id)
+        pdf_content, name, error = await generate_guia_completa_pdf(guia_id)
         if error:
             await log_activity('ERROR', 'get_guia_pdf_error', f"{error}")
             raise HTTPException(status_code=500, detail=error)
         
+        # Limpiar nombre para el header del archivo
+        safe_name = "".join([c if c.isalnum() else "_" for c in name])
+        filename = f"{guia_id}_{safe_name}.pdf"
+
         from fastapi.responses import Response
         return Response(
             content=pdf_content,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"inline; filename=Guia_Completa_{guia_id}.pdf"}
+            headers={"Content-Disposition": f"inline; filename={filename}"}
         )
     except HTTPException:
         raise
@@ -873,7 +877,7 @@ async def send_guia_email(guia_id: str):
         raise HTTPException(status_code=400, detail="El registro no tiene correo electrónico configurado")
 
     # 2. Generar PDF
-    pdf_content, error = await generate_guia_completa_pdf(guia_id)
+    pdf_content, name, error = await generate_guia_completa_pdf(guia_id)
     if error:
         raise HTTPException(status_code=500, detail=error)
 
@@ -884,8 +888,8 @@ async def send_guia_email(guia_id: str):
     <html>
         <body>
             <h2>Guía de Traslado Completa</h2>
-            <p>Hola <strong>{data.get('Nombre', 'Cazador')}</strong>,</p>
-            <p>Se adjunta la Guía de Traslado completa (Parte 1 y 2) correspondiente al registro ID: <strong>{guia_id}</strong>.</p>
+            <p>Hola <strong>{name}</strong>,</p>
+            <p>Se adjunta la Guía de Traslado completa correspondiente al registro ID: <strong>{guia_id}</strong>.</p>
             <br>
             <p>Saludos,</p>
             <p>Sistema de Control Caza 2026</p>
@@ -893,13 +897,16 @@ async def send_guia_email(guia_id: str):
     </html>
     """
 
+    safe_name = "".join([c if c.isalnum() else "_" for c in name])
+    filename = f"{guia_id}_{safe_name}.pdf"
+
     success = email_services.send_email_with_attachment(
         to_email=to_email,
         subject=subject,
         html_content=html_content,
         sender_email=sender_email,
         attachment_content=pdf_content,
-        attachment_filename=f"Guia_Completa_{guia_id}.pdf"
+        attachment_filename=filename
     )
 
     if not success:
