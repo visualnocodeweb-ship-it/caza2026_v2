@@ -1678,8 +1678,12 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         inscripciones_records = await database.fetch_all(pagos.select())
         # Obtener pagos de permisos desde la tabla 'pagos_permisos'
         permisos_records = await database.fetch_all(pagos_permisos.select())
+        # Obtener pagos de guías desde la tabla 'guias_details'
+        guias_records = await database.fetch_all(guias_details.select().where(guias_details.c.is_paid == True))
+        # Obtener pagos de reses desde la tabla 'reses_details'
+        reses_records = await database.fetch_all(reses_details.select().where(reses_details.c.is_paid == True))
 
-        # Combinar y normalizar ambas tablas
+        # Combinar y normalizar todas las tablas
         all_payments = []
 
         for record in inscripciones_records:
@@ -1689,6 +1693,9 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
                 "payment_id": record["payment_id"],
                 "inscription_id": insc_id,
                 "permiso_id": None,
+                "guia_id": None,
+                "res_id": None,
+                "type": "Inscripción",
                 "status": record["status"],
                 "status_detail": record["status_detail"],
                 "amount": record["amount"],
@@ -1702,11 +1709,46 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
                 "payment_id": record["payment_id"],
                 "inscription_id": None,
                 "permiso_id": safe_str_id(record["permiso_id"]),
+                "guia_id": None,
+                "res_id": None,
+                "type": "Permiso",
                 "status": record["status"],
                 "status_detail": record["status_detail"],
                 "amount": record["amount"],
                 "email": record["email"],
                 "date_created": record["date_created"],
+            })
+
+        for record in guias_records:
+            all_payments.append({
+                "id": record["id"],
+                "payment_id": f"GUIA-{record['guia_id']}",
+                "inscription_id": None,
+                "permiso_id": None,
+                "guia_id": record["guia_id"],
+                "res_id": None,
+                "type": "Guía Traslado",
+                "status": "approved",
+                "status_detail": "Pago Manual / Guía",
+                "amount": record["amount"],
+                "email": "N/A",
+                "date_created": record["last_updated"], # Usamos last_updated como referencia
+            })
+
+        for record in reses_records:
+            all_payments.append({
+                "id": record["id"],
+                "payment_id": f"RES-{record['res_id']}",
+                "inscription_id": None,
+                "permiso_id": None,
+                "guia_id": None,
+                "res_id": record["res_id"],
+                "type": "Reses",
+                "status": "approved",
+                "status_detail": "Pago Manual / Reses",
+                "amount": record["amount"],
+                "email": "N/A",
+                "date_created": record["last_updated"],
             })
 
         # Ordenar por fecha (más reciente primero)

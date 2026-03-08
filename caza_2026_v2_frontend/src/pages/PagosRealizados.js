@@ -127,8 +127,8 @@ const PagosRealizados = () => {
                 {payments.map((payment) => (
                   <tr key={payment.payment_id}>
                     <td>{payment.payment_id}</td>
-                    <td>{payment.inscription_id || payment.permiso_id}</td>
-                    <td>{payment.inscription_id ? 'Inscripción' : 'Permiso'}</td>
+                    <td>{payment.inscription_id || payment.permiso_id || payment.guia_id || payment.res_id}</td>
+                    <td>{payment.type || (payment.inscription_id ? 'Inscripción' : 'Permiso')}</td>
                     <td>{formatStatus(payment.status)}</td>
                     <td>${payment.amount ? payment.amount.toFixed(2) : '0.00'}</td>
                     <td>{payment.email}</td>
