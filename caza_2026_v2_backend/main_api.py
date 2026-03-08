@@ -1050,7 +1050,7 @@ async def send_guia_cobro(request: GuiaCobroRequest):
         </html>
         """
 
-        success = email_services.send_email(
+        success = email_services.send_simple_email(
             to_email=email,
             subject=subject,
             html_content=html_content,
