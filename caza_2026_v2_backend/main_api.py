@@ -1752,12 +1752,25 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
             })
 
         # Ordenar por fecha (más reciente primero)
-        all_payments.sort(key=lambda x: x["date_created"] if x["date_created"] else "", reverse=True)
+        # Asegurarse de que todos tengan una fecha para comparar (mínimo datetime si es None)
+        min_date = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
+        def get_sort_key(x):
+            d = x.get("date_created")
+            if d is None:
+                return min_date
+            if isinstance(d, str):
+                try:
+                    return datetime.datetime.fromisoformat(d.replace('Z', '+00:00'))
+                except:
+                    return min_date
+            return d
+
+        all_payments.sort(key=get_sort_key, reverse=True)
 
         # Aplicar búsqueda global si hay término
         debug_search = f"Received: {search}"
-        if search and str(search).strip():
-            search_str = str(search).lower()
+        if search and str(search).strip() and str(search).lower() != "undefined" and str(search).lower() != "null":
+            search_str = str(search).lower().strip()
             all_payments = [
                 p for p in all_payments 
                 if any(search_str in str(val).lower() for val in p.values())
