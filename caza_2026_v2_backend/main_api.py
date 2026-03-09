@@ -819,35 +819,38 @@ async def generate_guia_completa_pdf(guia_id: str):
             pdf.cell(0, 10, "Guía de Traslado de Cabezas - Dirección de Fauna Neuquén", ln=True, align="C")
             pdf.ln(5)
 
-            # Sección: DATOS GENERALES
+            # Sección: DATOS GENERALES (TODOS los campos de cabeza_1)
             pdf.set_font("helvetica", "B", 11)
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(0, 8, "DATOS GENERALES", ln=True, fill=True)
             pdf.set_font("helvetica", "", 9)
             
-            fields1 = ["ID", "ACM", "Tipo ACM", "Especies", "Fecha", "Nombre", "DNI", "Correo", "Telefono", "Numero permiso caza"]
-            for field in fields1:
-                val = str(data1.get(field, "N/A"))
-                pdf.set_font("helvetica", "B", 9)
-                pdf.write(7, f"{field}: ")
-                pdf.set_font("helvetica", "", 9)
-                pdf.write(7, f"{val}\n")
+            for field, value in data1.items():
+                if field.lower() == 'imagen':
+                    continue
+                val = str(value) if value else "N/A"
+                if val.strip() and val.strip().lower() != 'nan':
+                    pdf.set_font("helvetica", "B", 9)
+                    pdf.write(7, f"{field}: ")
+                    pdf.set_font("helvetica", "", 9)
+                    pdf.write(7, f"{val}\n")
             
             pdf.ln(4)
 
-            # Sección Técnica: Solo Precinto y Agente
+            # Sección: DATOS COMPLEMENTARIOS (TODOS los campos de cabeza_2)
             if data2:
                 pdf.set_font("helvetica", "B", 11)
                 pdf.set_fill_color(240, 240, 240)
-                pdf.cell(0, 8, "DETALLES TÉCNICOS", ln=True, fill=True)
+                pdf.cell(0, 8, "DATOS COMPLEMENTARIOS", ln=True, fill=True)
                 pdf.set_font("helvetica", "", 9)
 
-                for key in ['precinto', 'agente']:
-                    val = data2.get(key, "N/A")
-                    pdf.set_font("helvetica", "B", 9)
-                    pdf.write(7, f"{key.capitalize()}: ")
-                    pdf.set_font("helvetica", "", 9)
-                    pdf.write(7, f"{str(val)}\n")
+                for field, value in data2.items():
+                    val = str(value) if value else "N/A"
+                    if val.strip() and val.strip().lower() != 'nan':
+                        pdf.set_font("helvetica", "B", 9)
+                        pdf.write(7, f"{field}: ")
+                        pdf.set_font("helvetica", "", 9)
+                        pdf.write(7, f"{val}\n")
                 
                 pdf.ln(4)
 
