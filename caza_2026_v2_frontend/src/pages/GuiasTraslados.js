@@ -173,7 +173,7 @@ const GuiasTraslados = () => {
             {guias.length > 0 ? (
                 <div className="inscripciones-list">
                     {guias.map((item, index) => (
-                        <div key={item.ID || index} className="inscripcion-card" data-expanded={!!expandedStates[index]}>
+                        <div key={item.ID || index} className={`inscripcion-card ${paidStatus[item.ID] ? 'pagado-bg' : 'pendiente-bg'}`} data-expanded={!!expandedStates[index]}>
                             <div className="card-header" onClick={() => toggleExpand(index)}>
                                 <div className="header-info">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
