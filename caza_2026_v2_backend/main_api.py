@@ -17,6 +17,7 @@ from typing import Optional, List, Dict, Any
 from fpdf import FPDF
 import requests
 from io import BytesIO
+import unicodedata
 
 # --- Helpers ---
 def safe_str_id(val) -> Optional[str]:
@@ -42,6 +43,16 @@ def safe_str_id(val) -> Optional[str]:
         except:
             pass
     return s_val
+
+def normalize_text(text) -> str:
+    """Convierte a minúsculas y elimina acentos para búsquedas insensibles."""
+    if text is None:
+        return ""
+    text = str(text).lower().strip()
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'
+    )
 
 # --- Pydantic Models ---
 class InscriptionCreate(BaseModel):
@@ -231,12 +242,12 @@ async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, g
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
 
         # Aplicar búsqueda global si hay término
-        debug_search = f"Received: {search}"
         if search and str(search).strip():
-            search_str = str(search).lower()
-            # Método más robusto para filtrar en todas las columnas
-            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
-            df = df[mask]
+            search_terms = [normalize_text(t) for t in str(search).split() if t.strip()]
+            if search_terms:
+                combined_text = df.astype(str).apply(lambda x: " ".join(x), axis=1).apply(normalize_text)
+                mask = combined_text.apply(lambda x: all(term in x for term in search_terms))
+                df = df[mask]
         
         total_records = len(df)
         offset = (page - 1) * limit
@@ -532,12 +543,12 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
             return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
 
         # Aplicar búsqueda global si hay término
-        debug_search = f"Received: {search}"
         if search and str(search).strip():
-            search_str = str(search).lower()
-            # Método más robusto para filtrar en todas las columnas
-            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
-            df = df[mask]
+            search_terms = [normalize_text(t) for t in str(search).split() if t.strip()]
+            if search_terms:
+                combined_text = df.astype(str).apply(lambda x: " ".join(x), axis=1).apply(normalize_text)
+                mask = combined_text.apply(lambda x: all(term in x for term in search_terms))
+                df = df[mask]
 
         total_records = len(df)
         offset = (page - 1) * limit
@@ -641,12 +652,12 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         df = df.iloc[::-1]
 
         # Aplicar búsqueda global si hay término
-        debug_search = f"Received: {search}"
         if search and str(search).strip():
-            search_str = str(search).lower()
-            # Método más robusto para filtrar en todas las columnas
-            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
-            df = df[mask]
+            search_terms = [normalize_text(t) for t in str(search).split() if t.strip()]
+            if search_terms:
+                combined_text = df.astype(str).apply(lambda x: " ".join(x), axis=1).apply(normalize_text)
+                mask = combined_text.apply(lambda x: all(term in x for term in search_terms))
+                df = df[mask]
 
         total_records = len(df)
         offset = (page - 1) * limit
@@ -733,9 +744,11 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
 
         # Aplicar búsqueda global si hay término
         if search and str(search).strip():
-            search_str = str(search).lower()
-            mask = df.astype(str).apply(lambda x: x.str.contains(search_str, case=False)).any(axis=1)
-            df = df[mask]
+            search_terms = [normalize_text(t) for t in str(search).split() if t.strip()]
+            if search_terms:
+                combined_text = df.astype(str).apply(lambda x: " ".join(x), axis=1).apply(normalize_text)
+                mask = combined_text.apply(lambda x: all(term in x for term in search_terms))
+                df = df[mask]
 
         total_records = len(df)
         offset = (page - 1) * limit
@@ -1786,13 +1799,13 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         all_payments.sort(key=get_sort_key, reverse=True)
 
         # Aplicar búsqueda global si hay término
-        debug_search = f"Received: {search}"
-        if search and str(search).strip() and str(search).lower() != "undefined" and str(search).lower() != "null":
-            search_str = str(search).lower().strip()
-            all_payments = [
-                p for p in all_payments 
-                if any(search_str in str(val).lower() for val in p.values())
-            ]
+        if search and str(search).strip() and str(search).lower() not in ["undefined", "null"]:
+            search_terms = [normalize_text(t) for t in str(search).split() if t.strip()]
+            if search_terms:
+                all_payments = [
+                    p for p in all_payments 
+                    if all(term in normalize_text(" ".join(str(val) for val in p.values())) for term in search_terms)
+                ]
 
         # Aplicar paginación
         total_records = len(all_payments)
