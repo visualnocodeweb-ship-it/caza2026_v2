@@ -175,6 +175,10 @@ const PermisoCaza = () => {
               {expandedStates[index] && (
                 <div className="card-details">
                   <div className="detail-item">
+                    <span className="detail-label">ID</span>
+                    <span className="detail-value" style={{ fontWeight: 'bold', color: '#1e293b' }}>{permiso['ID'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
                     <span className="detail-label">Email</span>
                     <span className="detail-value">{permiso['Dirección de correo electrónico'] || 'N/A'}</span>
                   </div>
