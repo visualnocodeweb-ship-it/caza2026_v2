@@ -10,7 +10,7 @@ from sqlalchemy import select
 from typing import Dict, List, Any
 
 from ..database import database
-from ..models import pagos, pagos_permisos, reses_details
+from ..models import pagos, pagos_permisos, reses_details, guias_details
 
 router = APIRouter(
     prefix="/api/fiscalizador",
@@ -34,11 +34,16 @@ async def get_pagos_aprobados():
         # Consulta Reses
         query_res = select(reses_details.c.res_id).where(reses_details.c.is_paid == True)
         reses_rows = await database.fetch_all(query_res)
+
+        # Consulta Guías de Traslado
+        query_guias = select(guias_details.c.guia_id).where(guias_details.c.is_paid == True)
+        guias_rows = await database.fetch_all(query_guias)
         
         return {
             "inscripciones_pagadas": [str(row[0]) for row in inscripciones_rows],
             "permisos_pagados": [str(row[0]) for row in permisos_rows],
-            "reses_pagadas": [str(row[0]) for row in reses_rows]
+            "reses_pagadas": [str(row[0]) for row in reses_rows],
+            "guias_traslado_pagadas": [str(row[0]) for row in guias_rows]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al consultar la base de datos: {str(e)}")
