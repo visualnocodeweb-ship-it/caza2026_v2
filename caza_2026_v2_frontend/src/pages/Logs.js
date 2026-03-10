@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchLogs } from '../utils/api';
 import '../styles/App.css';
 
-const RECORDS_PER_PAGE = 15; // Constante para la paginación
+const RECORDS_PER_PAGE = 20; // Constante para la paginación
 
 const Logs = () => {
     const [logs, setLogs] = useState([]);

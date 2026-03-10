@@ -3,7 +3,7 @@ import { fetchPermisos, sendPermisoPaymentLink, sendPermisoEmailAPI, logSentItem
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
-const RECORDS_PER_PAGE = 10;
+const RECORDS_PER_PAGE = 20;
 
 const PermisoCaza = () => {
   const [permisos, setPermisos] = useState([]);

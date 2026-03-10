@@ -43,7 +43,7 @@ const PagosRealizados = () => {
   const [guiasTotalPages, setGuiasTotalPages] = useState(1);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [limit] = useState(10); // Common limit for all
+  const [limit] = useState(20); // Common limit for all
 
   useEffect(() => {
     const getPayments = async () => {

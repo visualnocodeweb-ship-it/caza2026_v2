@@ -3,7 +3,7 @@ import { fetchGuiasTraslados, getGuiaPdfUrl, sendGuiaEmail, saveGuiaPago, sendGu
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
-const RECORDS_PER_PAGE = 10;
+const RECORDS_PER_PAGE = 20;
 
 const GuiasTraslados = () => {
     const [guias, setGuias] = useState([]);

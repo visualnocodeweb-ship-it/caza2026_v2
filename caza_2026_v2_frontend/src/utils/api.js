@@ -8,7 +8,7 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://caza2026-1.onrender.com/api'
   : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
 
-export const fetchInscripciones = async (page = 1, limit = 10, search = '') => {
+export const fetchInscripciones = async (page = 1, limit = 20, search = '') => {
   try {
     let url = `${API_BASE_URL}/inscripciones?page=${page}&limit=${limit}`;
     if (search) {
@@ -23,11 +23,11 @@ export const fetchInscripciones = async (page = 1, limit = 10, search = '') => {
     return data;
   } catch (error) {
     console.error("Error fetching inscripciones:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 }; // Return a structured empty response
   }
 };
 
-export const fetchPermisos = async (page = 1, limit = 10, search = '') => {
+export const fetchPermisos = async (page = 1, limit = 20, search = '') => {
   try {
     let url = `${API_BASE_URL}/permisos?page=${page}&limit=${limit}`;
     if (search) {
@@ -41,11 +41,11 @@ export const fetchPermisos = async (page = 1, limit = 10, search = '') => {
     return data;
   } catch (error) {
     console.error("Error fetching permisos:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 }; // Return a structured empty response
   }
 };
 
-export const fetchReses = async (page = 1, limit = 10, search = '') => {
+export const fetchReses = async (page = 1, limit = 20, search = '') => {
   try {
     let url = `${API_BASE_URL}/reses?page=${page}&limit=${limit}`;
     if (search) {
@@ -59,7 +59,7 @@ export const fetchReses = async (page = 1, limit = 10, search = '') => {
     return data;
   } catch (error) {
     console.error("Error fetching reses:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 };
   }
 };
 
@@ -169,7 +169,7 @@ export const fetchPrices = async () => {
   }
 };
 
-export const fetchPayments = async (page = 1, limit = 10, search = '') => {
+export const fetchPayments = async (page = 1, limit = 20, search = '') => {
   try {
     let url = `${API_BASE_URL}/pagos?page=${page}&limit=${limit}`;
     if (search) {
@@ -183,11 +183,11 @@ export const fetchPayments = async (page = 1, limit = 10, search = '') => {
     return data;
   } catch (error) {
     console.error("Error fetching payments:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 }; // Return a structured empty response
   }
 };
 
-export const fetchResesPagos = async (page = 1, limit = 10) => {
+export const fetchResesPagos = async (page = 1, limit = 20) => {
   try {
     const response = await fetch(`${API_BASE_URL}/reses/pagos?page=${page}&limit=${limit}`);
     if (!response.ok) {
@@ -196,7 +196,7 @@ export const fetchResesPagos = async (page = 1, limit = 10) => {
     return await response.json();
   } catch (error) {
     console.error("Error fetching reses payments:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 };
   }
 };
 
@@ -397,7 +397,7 @@ export const viewCredentialAPI = async (numero_inscripcion) => {
   }
 };
 
-export const fetchCobrosEnviados = async (page = 1, limit = 10) => {
+export const fetchCobrosEnviados = async (page = 1, limit = 20) => {
   try {
     const response = await fetch(`${API_BASE_URL}/cobros-enviados?page=${page}&limit=${limit}`);
     if (!response.ok) {
@@ -407,11 +407,11 @@ export const fetchCobrosEnviados = async (page = 1, limit = 10) => {
     return data;
   } catch (error) {
     console.error("Error fetching sent payments:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 }; // Return a structured empty response
   }
 };
 
-export const fetchPermisoCobrosEnviados = async (page = 1, limit = 10) => {
+export const fetchPermisoCobrosEnviados = async (page = 1, limit = 20) => {
   try {
     const response = await fetch(`${API_BASE_URL}/permiso-cobros-enviados?page=${page}&limit=${limit}`);
     if (!response.ok) {
@@ -421,7 +421,7 @@ export const fetchPermisoCobrosEnviados = async (page = 1, limit = 10) => {
     return data;
   } catch (error) {
     console.error("Error fetching sent permiso payments:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 }; // Return a structured empty response
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 }; // Return a structured empty response
   }
 };
 
@@ -498,11 +498,11 @@ export const fetchSentItems = async () => {
     return data;
   } catch (error) {
     console.error("Error fetching sent items:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 };
   }
 };
 
-export const fetchLogs = async (page = 1, limit = 15) => {
+export const fetchLogs = async (page = 1, limit = 20) => {
   try {
     const response = await fetch(`${API_BASE_URL}/logs?page=${page}&limit=${limit}`);
     if (!response.ok) {
@@ -512,11 +512,11 @@ export const fetchLogs = async (page = 1, limit = 15) => {
     return data;
   } catch (error) {
     console.error("Error fetching logs:", error);
-    return { data: [], total_records: 0, page: 1, limit: 15, total_pages: 0 };
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 };
   }
 };
 
-export const fetchGuiasTraslados = async (page = 1, limit = 10, search = '') => {
+export const fetchGuiasTraslados = async (page = 1, limit = 20, search = '') => {
   try {
     let url = `${API_BASE_URL}/guias-traslados?page=${page}&limit=${limit}`;
     if (search) {
@@ -530,7 +530,7 @@ export const fetchGuiasTraslados = async (page = 1, limit = 10, search = '') => 
     return data;
   } catch (error) {
     console.error("Error fetching guias traslados:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 };
   }
 };
 
@@ -605,7 +605,7 @@ export const sendGuiaCobro = async (cobroData) => {
   }
 };
 
-export const fetchGuiasPagos = async (page = 1, limit = 10) => {
+export const fetchGuiasPagos = async (page = 1, limit = 20) => {
   try {
     const response = await fetch(`${API_BASE_URL}/guias-traslados/pagos?page=${page}&limit=${limit}`);
     if (!response.ok) {
@@ -614,6 +614,6 @@ export const fetchGuiasPagos = async (page = 1, limit = 10) => {
     return await response.json();
   } catch (error) {
     console.error("Error fetching guias payments:", error);
-    return { data: [], total_records: 0, page: 1, limit: 10, total_pages: 0 };
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 };
   }
 };

@@ -3,7 +3,7 @@ import { fetchReses, sendResesGuia, sendResesPayment, logResesAction } from '../
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
-const RECORDS_PER_PAGE = 10;
+const RECORDS_PER_PAGE = 20;
 
 const Reses = () => {
     const [reses, setReses] = useState([]);

@@ -3,7 +3,7 @@ import { fetchInscripciones, linkData, sendPaymentLink, sendCredentialAPI, viewC
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
-const RECORDS_PER_PAGE = 10;
+const RECORDS_PER_PAGE = 20;
 
 const Inscripciones = () => {
   const [inscripciones, setInscripciones] = useState([]);
