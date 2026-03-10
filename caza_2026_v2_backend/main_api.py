@@ -560,7 +560,18 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         permisos_folder_id = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
         pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
         # Diccionario de ID -> Link
-        pdf_dict = {pdf['name'].replace('.pdf', '').strip(): pdf.get('webViewLink', '') for pdf in pdfs if 'name' in pdf}
+        pdf_dict = {}
+        for pdf in pdfs:
+            if 'name' in pdf:
+                name_without_ext = pdf['name'].replace('.pdf', '').strip()
+                # El formato puede ser 'permiso_caza[HEX]' o 'permiso_caza[HEX]_[Nombre]'
+                # Si dividimos por '_' los dos primeros elementos forman el ID base
+                parts = name_without_ext.split('_')
+                if len(parts) >= 2 and parts[0] == 'permiso' and parts[1].startswith('caza'):
+                    base_id = f"{parts[0]}_{parts[1]}"
+                    pdf_dict[base_id] = pdf.get('webViewLink', '')
+                else:
+                    pdf_dict[name_without_ext] = pdf.get('webViewLink', '')
 
         # 1. Crear un mapeo de DNI -> PDF_LINK basado en todos los registros que SI tienen match directo.
         dni_to_pdf = {}
