@@ -1,4 +1,5 @@
 import logging
+# v2.0.2 - Consolidación de Algar SA y Login Especial
 from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
