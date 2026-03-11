@@ -7,7 +7,7 @@ const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
   return (
     <nav className="navbar">
-      {user !== 'algar' && (
+      {user !== 'algar' && user !== 'fauna1' && (
         <>
           <NavLink to="/inscripciones" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             Inscripciones
@@ -44,7 +44,7 @@ const Navbar = () => {
                 Algar SA
               </NavLink>
               <NavLink to="/guias-traslados-varios" className={({ isActive }) => (isActive ? "active" : "")}>
-                Guías Traslados
+                Guías de Traslado (Faunas)
               </NavLink>
             </div>
           </div>
@@ -54,6 +54,12 @@ const Navbar = () => {
       {user === 'algar' && (
         <NavLink to="/algar-sa" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
           Algar SA
+        </NavLink>
+      )}
+
+      {user === 'fauna1' && (
+        <NavLink to="/guias-traslados-varios" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+          Guías de Traslado (Faunas)
         </NavLink>
       )}
 

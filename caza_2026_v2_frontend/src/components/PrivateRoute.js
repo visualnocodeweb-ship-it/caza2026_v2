@@ -20,6 +20,11 @@ const PrivateRoute = ({ children }) => {
         return <Navigate to="/algar-sa" replace />;
     }
 
+    // Restriction for fauna1 user
+    if (user === 'fauna1' && currentPath !== '/guias-traslados-varios') {
+        return <Navigate to="/guias-traslados-varios" replace />;
+    }
+
     return children;
 };
 

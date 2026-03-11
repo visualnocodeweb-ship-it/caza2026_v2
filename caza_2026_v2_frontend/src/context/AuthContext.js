@@ -13,7 +13,8 @@ export const AuthProvider = ({ children }) => {
         'Karen': 'Karen321',
         'Emanuel': 'Emanuel321',
         'Nico': 'Nico321',
-        'algar': 'algarmariano'
+        'algar': 'algarmariano',
+        'fauna1': 'fauna1nqn'
     };
 
     const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
@@ -43,6 +44,8 @@ export const AuthProvider = ({ children }) => {
             // Redirect based on user
             if (username === 'algar') {
                 navigate('/algar-sa');
+            } else if (username === 'fauna1') {
+                navigate('/guias-traslados-varios');
             } else {
                 navigate('/dashboard');
             }
