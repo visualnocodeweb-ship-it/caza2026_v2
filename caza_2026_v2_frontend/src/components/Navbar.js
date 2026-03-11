@@ -43,6 +43,9 @@ const Navbar = () => {
               <NavLink to="/algar-sa" className={({ isActive }) => (isActive ? "active" : "")}>
                 Algar SA
               </NavLink>
+              <NavLink to="/guias-traslados-varios" className={({ isActive }) => (isActive ? "active" : "")}>
+                Guías Traslados
+              </NavLink>
             </div>
           </div>
         </>

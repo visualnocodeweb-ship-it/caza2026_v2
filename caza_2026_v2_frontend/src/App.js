@@ -18,6 +18,7 @@ import PagosRealizados from './pages/PagosRealizados';
 import Reses from './pages/Reses';
 import GuiasTraslados from './pages/GuiasTraslados';
 import AlgarSA from './pages/AlgarSA';
+import GuiaTrasladosVarios from './pages/GuiaTrasladosVarios';
 
 const App = () => {
   return (
@@ -62,6 +63,11 @@ const App = () => {
             <Route path="/algar-sa" element={
               <PrivateRoute>
                 <AlgarSA />
+              </PrivateRoute>
+            } />
+            <Route path="/guias-traslados-varios" element={
+              <PrivateRoute>
+                <GuiaTrasladosVarios />
               </PrivateRoute>
             } />
 
