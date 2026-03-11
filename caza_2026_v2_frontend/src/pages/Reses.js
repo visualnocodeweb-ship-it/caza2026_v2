@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReses, sendResesGuia, sendResesPayment, logResesAction } from '../utils/api';
+import { fetchReses, sendResesGuia, sendResesPayment, logResesAction, getResesPdfUrl } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -353,15 +353,19 @@ const Reses = () => {
                                             </div>
 
                                             <div className="guia-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                                {item.docx_link ? (
-                                                    <button
-                                                        className="action-button btn-secondary"
-                                                        onClick={(e) => { e.stopPropagation(); handleEditDocx(item); }}
+                                                {item.docx_id ? (
+                                                    <a
+                                                        href={getResesPdfUrl(item.docx_id)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="action-button btn-success"
+                                                        onClick={() => handleEditDocx(item)}
+                                                        style={{ textDecoration: 'none' }}
                                                     >
-                                                        Editar Docx
-                                                    </button>
+                                                        Ver PDF
+                                                    </a>
                                                 ) : (
-                                                    <button className="action-button" disabled style={{ opacity: 0.5 }}>Docx no encontrado</button>
+                                                    <button className="action-button" disabled style={{ opacity: 0.5 }}>PDF no disponible</button>
                                                 )}
 
                                                 <button

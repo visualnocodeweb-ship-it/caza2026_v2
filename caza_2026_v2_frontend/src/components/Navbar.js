@@ -34,6 +34,16 @@ const Navbar = () => {
       >
         Maps
       </a>
+
+      <div className="nav-item dropdown">
+        <button className="dropbtn">Varios ▼</button>
+        <div className="dropdown-content">
+          <NavLink to="/algar-sa" className={({ isActive }) => (isActive ? "active" : "")}>
+            Algar SA
+          </NavLink>
+        </div>
+      </div>
+
       <button
         onClick={logout}
         className="nav-item logout-btn"

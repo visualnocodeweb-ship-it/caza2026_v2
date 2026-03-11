@@ -1113,6 +1113,26 @@ class SendResesGuiaRequest(BaseModel):
     email: str
     docx_id: str
 
+@app.get("/api/reses/view-pdf/{docx_id}")
+async def get_reses_pdf(docx_id: str):
+    try:
+        await log_activity('INFO', 'view_reses_pdf_request', f'Solicitud para ver PDF de reses: {docx_id}')
+        # Exportar Docx a PDF usando Google Drive API
+        pdf_content = drive_services.export_file_as_pdf(docx_id)
+        if not pdf_content:
+            await log_activity('ERROR', 'view_reses_pdf_failed', f"Error exportando a PDF: {docx_id}")
+            raise HTTPException(status_code=500, detail="Error al generar el PDF de la guía desde Drive.")
+
+        from fastapi.responses import Response
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename=Reses_{docx_id}.pdf"}
+        )
+    except Exception as e:
+        await log_activity('ERROR', 'get_reses_pdf_endpoint_fail', f"{e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/send-reses-guia", response_model=Dict[str, str])
 async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
     res_id_clean = safe_str_id(request_data.res_id)

@@ -617,3 +617,6 @@ export const fetchGuiasPagos = async (page = 1, limit = 20) => {
     return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 };
   }
 };
+export const getResesPdfUrl = (docxId) => {
+  return `${API_BASE_URL}/reses/view-pdf/${docxId}`;
+};
