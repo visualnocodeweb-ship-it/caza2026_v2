@@ -218,7 +218,7 @@ async def health_check():
 
 print("DEBUG: Registering /api/inscripciones route")
 @app.get("/api/inscripciones", response_model=Dict[str, Any])
-async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+async def get_inscripciones(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     print(f"DEBUG: Executing get_inscripciones page={page} limit={limit} search={search}")
     await log_activity('INFO', 'get_inscripciones_request', f'Solicitud de inscripciones - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
@@ -522,7 +522,7 @@ async def create_inscripcion(inscripcion: InscriptionCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al crear inscripción: {e}")
 
 @app.get("/api/permisos", response_model=Dict[str, Any])
-async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_permisos_request', f'Solicitud de permisos - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         # Leer permisos desde Google Sheets o DB
@@ -645,7 +645,7 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener permisos: {e}")
 
 @app.get("/api/reses", response_model=Dict[str, Any])
-async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_reses_request', f'Solicitud de reses - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
@@ -738,7 +738,7 @@ async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener reses: {e}")
 
 @app.get("/api/guias-traslados", response_model=Dict[str, Any])
-async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100), search: Optional[str] = Query(None)):
+async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_guias_traslados_request', f'Solicitud de guías de traslados - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         # Usamos el Sheet ID proporcionado por el usuario para esta sección específica
