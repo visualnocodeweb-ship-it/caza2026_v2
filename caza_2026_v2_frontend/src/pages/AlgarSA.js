@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { fetchInscripciones, fetchPermisos, fetchReses, fetchGuiasTraslados, getResesPdfUrl, getGuiaPdfUrl } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
@@ -10,8 +10,28 @@ const AlgarSA = () => {
         reses: [],
         guias: []
     });
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+
+    const [pages, setPages] = useState({
+        insc: 1,
+        perm: 1,
+        res: 1,
+        gui: 1
+    });
+
+    const [totalPages, setTotalPages] = useState({
+        insc: 0,
+        perm: 0,
+        res: 0,
+        gui: 0
+    });
+
+    const [loading, setLoading] = useState({
+        insc: false,
+        perm: false,
+        res: false,
+        gui: false
+    });
+
     const [expandedStates, setExpandedStates] = useState({
         inscripciones: {},
         permisos: {},
@@ -19,37 +39,66 @@ const AlgarSA = () => {
         guias: {}
     });
 
+    const limit = 40;
     const searchAlgar = "Algar";
 
-    const fetchAllData = async () => {
-        setLoading(true);
+    const fetchData = useCallback(async (section, page) => {
+        setLoading(prev => ({ ...prev, [section]: true }));
         try {
-            // Buscamos con un límite alto para traer "todas" como pidió el usuario
-            const limit = 1000;
-            const [insc, perm, res, gui] = await Promise.all([
-                fetchInscripciones(1, limit, searchAlgar),
-                fetchPermisos(1, limit, searchAlgar),
-                fetchReses(1, limit, searchAlgar),
-                fetchGuiasTraslados(1, limit, searchAlgar)
-            ]);
-
-            setData({
-                inscripciones: insc.data || [],
-                permisos: perm.data || [],
-                reses: res.data || [],
-                guias: gui.data || []
-            });
+            let result;
+            switch (section) {
+                case 'insc':
+                    result = await fetchInscripciones(page, limit, searchAlgar);
+                    setData(prev => ({ ...prev, inscripciones: result.data || [] }));
+                    setTotalPages(prev => ({ ...prev, insc: result.total_pages || 0 }));
+                    break;
+                case 'perm':
+                    result = await fetchPermisos(page, limit, searchAlgar);
+                    setData(prev => ({ ...prev, permisos: result.data || [] }));
+                    setTotalPages(prev => ({ ...prev, perm: result.total_pages || 0 }));
+                    break;
+                case 'res':
+                    result = await fetchReses(page, limit, searchAlgar);
+                    setData(prev => ({ ...prev, reses: result.data || [] }));
+                    setTotalPages(prev => ({ ...prev, res: result.total_pages || 0 }));
+                    break;
+                case 'gui':
+                    result = await fetchGuiasTraslados(page, limit, searchAlgar);
+                    setData(prev => ({ ...prev, guias: result.data || [] }));
+                    setTotalPages(prev => ({ ...prev, gui: result.total_pages || 0 }));
+                    break;
+                default:
+                    break;
+            }
         } catch (err) {
-            console.error("Error al cargar datos de Algar SA:", err);
-            setError("Hubo un error al cargar algunos datos.");
+            console.error(`Error al cargar datos de ${section}:`, err);
         } finally {
-            setLoading(false);
+            setLoading(prev => ({ ...prev, [section]: false }));
         }
-    };
+    }, []);
 
     useEffect(() => {
-        fetchAllData();
-    }, []);
+        fetchData('insc', pages.insc);
+    }, [pages.insc, fetchData]);
+
+    useEffect(() => {
+        fetchData('perm', pages.perm);
+    }, [pages.perm, fetchData]);
+
+    useEffect(() => {
+        fetchData('res', pages.res);
+    }, [pages.res, fetchData]);
+
+    useEffect(() => {
+        fetchData('gui', pages.gui);
+    }, [pages.gui, fetchData]);
+
+    const handlePageChange = (section, newPage) => {
+        if (newPage >= 1 && newPage <= totalPages[section]) {
+            setPages(prev => ({ ...prev, [section]: newPage }));
+            // Reset scroll to top of section or similar if needed
+        }
+    };
 
     const toggleExpand = (section, index) => {
         setExpandedStates(prev => ({
@@ -67,8 +116,33 @@ const AlgarSA = () => {
         return isNaN(date.getTime()) ? dateString : date.toLocaleString();
     };
 
-    if (loading) return <div className="loading-container"><p>Cargando datos de Algar SA...</p></div>;
-    if (error) return <div className="error-container"><p>{error}</p></div>;
+    const Pagination = ({ section, currentPage, total }) => {
+        if (total <= 1) return null;
+        return (
+            <div className="pagination-minimal">
+                <button
+                    disabled={currentPage <= 1 || loading[section]}
+                    onClick={() => handlePageChange(section, currentPage - 1)}
+                    className="p-btn"
+                >
+                    Anterior
+                </button>
+                <span className="p-info">Página {currentPage} de {total}</span>
+                <button
+                    disabled={currentPage >= total || loading[section]}
+                    onClick={() => handlePageChange(section, currentPage + 1)}
+                    className="p-btn"
+                >
+                    Siguiente
+                </button>
+            </div>
+        );
+    };
+
+    const isGlobalLoading = loading.insc && loading.perm && loading.res && loading.gui &&
+        data.inscripciones.length === 0 && data.permisos.length === 0;
+
+    if (isGlobalLoading) return <div className="loading-container"><p>Iniciando carga de Algar SA...</p></div>;
 
     return (
         <div className="algar-sa-container" style={{ padding: '20px' }}>
@@ -78,7 +152,7 @@ const AlgarSA = () => {
             <section className="algar-section">
                 <div className="section-header-algar">
                     <h2>Inscripciones (Algar)</h2>
-                    <span className="count-badge">{data.inscripciones.length}</span>
+                    {loading.insc && <span className="loading-inline">Cargando...</span>}
                 </div>
                 <div className="inscripciones-list">
                     {data.inscripciones.map((item, index) => (
@@ -101,15 +175,16 @@ const AlgarSA = () => {
                             )}
                         </div>
                     ))}
-                    {data.inscripciones.length === 0 && <p className="no-data">No hay inscripciones de Algar.</p>}
+                    {data.inscripciones.length === 0 && !loading.insc && <p className="no-data">No hay inscripciones de Algar.</p>}
                 </div>
+                <Pagination section="insc" currentPage={pages.insc} total={totalPages.insc} />
             </section>
 
             {/* SECCIÓN 2: PERMISOS DE CAZA */}
             <section className="algar-section" style={{ marginTop: '40px' }}>
                 <div className="section-header-algar">
                     <h2>Permisos de Caza (Algar)</h2>
-                    <span className="count-badge">{data.permisos.length}</span>
+                    {loading.perm && <span className="loading-inline">Cargando...</span>}
                 </div>
                 <div className="inscripciones-list">
                     {data.permisos.map((item, index) => (
@@ -132,15 +207,16 @@ const AlgarSA = () => {
                             )}
                         </div>
                     ))}
-                    {data.permisos.length === 0 && <p className="no-data">No hay permisos de Algar.</p>}
+                    {data.permisos.length === 0 && !loading.perm && <p className="no-data">No hay permisos de Algar.</p>}
                 </div>
+                <Pagination section="perm" currentPage={pages.perm} total={totalPages.perm} />
             </section>
 
             {/* SECCIÓN 3: GUÍAS DE TRASLADO */}
             <section className="algar-section" style={{ marginTop: '40px' }}>
                 <div className="section-header-algar">
                     <h2>Guías de Traslado (Algar)</h2>
-                    <span className="count-badge">{data.guias.length}</span>
+                    {loading.gui && <span className="loading-inline">Cargando...</span>}
                 </div>
                 <div className="inscripciones-list">
                     {data.guias.map((item, index) => (
@@ -162,15 +238,16 @@ const AlgarSA = () => {
                             )}
                         </div>
                     ))}
-                    {data.guias.length === 0 && <p className="no-data">No hay guías de traslado de Algar.</p>}
+                    {data.guias.length === 0 && !loading.gui && <p className="no-data">No hay guías de traslado de Algar.</p>}
                 </div>
+                <Pagination section="gui" currentPage={pages.gui} total={totalPages.gui} />
             </section>
 
             {/* SECCIÓN 4: RESES */}
             <section className="algar-section" style={{ marginTop: '40px' }}>
                 <div className="section-header-algar">
                     <h2>Reses (Algar)</h2>
-                    <span className="count-badge">{data.reses.length}</span>
+                    {loading.res && <span className="loading-inline">Cargando...</span>}
                 </div>
                 <div className="inscripciones-list">
                     {data.reses.map((item, index) => (
@@ -193,8 +270,9 @@ const AlgarSA = () => {
                             )}
                         </div>
                     ))}
-                    {data.reses.length === 0 && <p className="no-data">No hay registros de reses de Algar.</p>}
+                    {data.reses.length === 0 && !loading.res && <p className="no-data">No hay registros de reses de Algar.</p>}
                 </div>
+                <Pagination section="res" currentPage={pages.res} total={totalPages.res} />
             </section>
 
             <style>{`
@@ -211,13 +289,10 @@ const AlgarSA = () => {
                     color: #2E5661;
                     font-size: 1.5rem;
                 }
-                .count-badge {
-                    background: #2E5661;
-                    color: white;
-                    padding: 2px 10px;
-                    border-radius: 20px;
-                    font-size: 0.9rem;
-                    font-weight: bold;
+                .loading-inline {
+                    font-size: 0.8rem;
+                    color: #64748B;
+                    font-style: italic;
                 }
                 .no-data {
                     text-align: center;
@@ -230,6 +305,39 @@ const AlgarSA = () => {
                     padding: 20px;
                     border-radius: 12px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                }
+                .pagination-minimal {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 20px;
+                    margin-top: 25px;
+                    padding-top: 15px;
+                    border-top: 1px solid #E2E8F0;
+                }
+                .p-btn {
+                    background: white;
+                    border: 1px solid #CBD5E1;
+                    padding: 6px 15px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                    font-weight: 600;
+                    color: #2E5661;
+                    transition: all 0.2s;
+                }
+                .p-btn:hover:not(:disabled) {
+                    background: #F1F5F9;
+                    border-color: #2E5661;
+                }
+                .p-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                .p-info {
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    color: #64748B;
                 }
             `}</style>
         </div>
