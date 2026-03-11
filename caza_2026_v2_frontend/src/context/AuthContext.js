@@ -12,7 +12,8 @@ export const AuthProvider = ({ children }) => {
     const CREDENTIALS = {
         'Karen': 'Karen321',
         'Emanuel': 'Emanuel321',
-        'Nico': 'Nico321'
+        'Nico': 'Nico321',
+        'algar': 'algarmariano'
     };
 
     const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
@@ -38,7 +39,13 @@ export const AuthProvider = ({ children }) => {
             setUser(username);
             localStorage.setItem('caza_user', username);
             localStorage.setItem('caza_login_time', Date.now().toString());
-            navigate('/dashboard'); // Refund to dashboard after login
+
+            // Redirect based on user
+            if (username === 'algar') {
+                navigate('/algar-sa');
+            } else {
+                navigate('/dashboard');
+            }
             return { success: true };
         } else {
             return { success: false, message: 'Usuario o contraseña incorrectos' };

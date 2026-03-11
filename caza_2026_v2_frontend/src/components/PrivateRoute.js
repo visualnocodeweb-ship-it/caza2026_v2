@@ -14,6 +14,12 @@ const PrivateRoute = ({ children }) => {
         return <Navigate to="/login" replace />;
     }
 
+    // Restriction for algar user
+    const currentPath = window.location.pathname;
+    if (user === 'algar' && currentPath !== '/algar-sa') {
+        return <Navigate to="/algar-sa" replace />;
+    }
+
     return children;
 };
 
