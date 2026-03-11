@@ -19,6 +19,16 @@ import Reses from './pages/Reses';
 import GuiasTraslados from './pages/GuiasTraslados';
 import AlgarSA from './pages/AlgarSA';
 import GuiaTrasladosVarios from './pages/GuiaTrasladosVarios';
+import { AuthContext } from './context/AuthContext';
+import { useContext } from 'react';
+
+const DashboardNavigate = () => {
+  const { user } = useContext(AuthContext);
+  if (!user) return <Navigate to="/login" replace />;
+  if (user === 'algar') return <Navigate to="/algar-sa" replace />;
+  if (user === 'fauna1') return <Navigate to="/guias-traslados-varios" replace />;
+  return <Navigate to="/inscripciones" replace />;
+};
 
 const App = () => {
   return (
@@ -32,7 +42,7 @@ const App = () => {
           <Route element={<Layout />}>
             <Route path="/" element={
               <PrivateRoute>
-                <Inscripciones />
+                <DashboardNavigate />
               </PrivateRoute>
             } />
             <Route path="/inscripciones" element={

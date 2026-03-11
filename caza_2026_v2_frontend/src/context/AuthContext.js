@@ -36,15 +36,20 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = (username, password) => {
-        if (CREDENTIALS[username] === password) {
-            setUser(username);
-            localStorage.setItem('caza_user', username);
+        // Find user by case-insensitive key comparison
+        const userKey = Object.keys(CREDENTIALS).find(
+            key => key.toLowerCase() === username.toLowerCase()
+        );
+
+        if (userKey && CREDENTIALS[userKey] === password) {
+            setUser(userKey);
+            localStorage.setItem('caza_user', userKey);
             localStorage.setItem('caza_login_time', Date.now().toString());
 
             // Redirect based on user
-            if (username === 'algar') {
+            if (userKey === 'algar') {
                 navigate('/algar-sa');
-            } else if (username === 'fauna1') {
+            } else if (userKey === 'fauna1') {
                 navigate('/guias-traslados-varios');
             } else {
                 navigate('/dashboard');
