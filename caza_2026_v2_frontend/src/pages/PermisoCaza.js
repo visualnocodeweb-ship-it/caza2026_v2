@@ -168,7 +168,12 @@ const PermisoCaza = () => {
           {permisos.map((permiso, index) => (
             <div key={permiso.ID || index} className={`inscripcion-card ${permiso['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : 'pendiente-bg'}`} data-expanded={!!expandedStates[index]}>
               <div className="card-header" onClick={() => toggleExpand(index)}>
-                <h3>{permiso['Nombre y Apellido'] || 'Nombre no disponible'}</h3>
+                <h3>
+                  {permiso['Nombre y Apellido'] || 'Nombre no disponible'}
+                  {permiso.sent_statuses && permiso.sent_statuses.includes('permiso') && (
+                    <span className="sent-checkmark" title="Permiso Enviado">✓</span>
+                  )}
+                </h3>
                 <span className="expand-toggle">▼</span>
               </div>
 
@@ -249,7 +254,7 @@ const PermisoCaza = () => {
                   <div className="sent-status-container">
                     {permiso.sent_statuses && permiso.sent_statuses.length > 0 && (
                       <p style={{ fontSize: '10px', color: '#64748B', margin: '5px 0 0', fontWeight: 'bold' }}>
-                        ENVIADO: {permiso.sent_statuses.join(', ').toUpperCase()}
+                        ENVIADO: {permiso.sent_statuses.map(status => status === 'permiso' ? 'PERMISO ENVIADO' : status.toUpperCase()).join(', ')}
                       </p>
                     )}
                   </div>

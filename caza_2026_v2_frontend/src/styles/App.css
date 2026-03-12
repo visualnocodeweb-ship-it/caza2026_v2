@@ -232,6 +232,16 @@ body {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sent-checkmark {
+  color: #166534;
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-shadow: 0 0 10px rgba(22, 101, 52, 0.2);
 }
 
 .card-details {
