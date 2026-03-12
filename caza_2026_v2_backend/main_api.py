@@ -2617,13 +2617,21 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
         pdf_filename = None
 
         permiso_id_clean = safe_str_id(request_data.permiso_id)
+        nombre_apellido_clean = safe_str_id(request_data.nombre_apellido).lower() if request_data.nombre_apellido else None
 
         # Intentar match por ID primero
         for pdf in pdfs:
-            if 'name' in pdf and safe_str_id(pdf['name'].replace('.pdf', '')) == permiso_id_clean:
-                pdf_id = pdf.get('id')
-                pdf_filename = pdf.get('name')
-                break
+            if 'name' in pdf:
+                pdf_name_lower = pdf['name'].lower()
+                if safe_str_id(pdf['name'].replace('.pdf', '')) == permiso_id_clean:
+                    pdf_id = pdf.get('id')
+                    pdf_filename = pdf.get('name')
+                    break
+                # Buscar por nombre en el formato: permiso_caza{ID}_{Nombre}
+                if nombre_apellido_clean and nombre_apellido_clean in pdf_name_lower:
+                    pdf_id = pdf.get('id')
+                    pdf_filename = pdf.get('name')
+                    break
         
         # Si no hubo match por ID, intentar buscar por DNI en el sheet para ver si otro registro sí tiene match
         if not pdf_id:
