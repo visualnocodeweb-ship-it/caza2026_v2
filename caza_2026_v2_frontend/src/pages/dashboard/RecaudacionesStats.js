@@ -8,6 +8,7 @@ const RecaudacionesStats = () => {
     recaudacion_inscripciones: 0,
     recaudacion_permisos: 0,
     recaudacion_reses: 0,
+    recaudacion_guias: 0,
     recaudacion_permisos_por_mes: []
   });
   const [loading, setLoading] = useState(true);
@@ -53,6 +54,10 @@ const RecaudacionesStats = () => {
         <div className="stat-widget">
           <div className="stat-widget-count">{loading ? '...' : formatCurrency(stats.recaudacion_reses)}</div>
           <div className="stat-widget-label">Recaudación por Reses</div>
+        </div>
+        <div className="stat-widget">
+          <div className="stat-widget-count">{loading ? '...' : formatCurrency(stats.recaudacion_guias)}</div>
+          <div className="stat-widget-label">Recaudación por Traslado de Cabezas</div>
         </div>
       </div>
 
