@@ -902,7 +902,7 @@ async def generate_guia_completa_pdf(guia_id: str):
                         # Si acabamos de imprimir la fecha, insertamos el tipo de caza
                         if field.lower() == 'fecha' and tipo_caza_val:
                             pdf.set_font("helvetica", "B", 9)
-                            pdf.write(7, "tipo de caza: ") # Respetamos el nombre pedido por el usuario
+                            pdf.write(7, "tipo de cabeza: ") # Corregido a petición del usuario
                             pdf.set_font("helvetica", "", 9)
                             pdf.write(7, f"{tipo_caza_val}\n")
                 
