@@ -884,13 +884,27 @@ async def generate_guia_completa_pdf(guia_id: str):
                 pdf.cell(0, 8, "DATOS COMPLEMENTARIOS", ln=True, fill=True)
                 pdf.set_font("helvetica", "", 9)
 
+                # Extraer "tipo de cabeza" para ponerlo después de "fecha" como pidió el usuario
+                tipo_caza_val = data2.get('tipo de cabeza') or data2.get('Tipo de Cabeza')
+
                 for field, value in data2.items():
+                    # Omitimos id y el propio tipo de cabeza para reubicarlo
+                    if field.lower() in ['id', 'tipo de cabeza']:
+                        continue
+
                     val = str(value) if value else "N/A"
                     if val.strip() and val.strip().lower() != 'nan':
                         pdf.set_font("helvetica", "B", 9)
                         pdf.write(7, f"{field}: ")
                         pdf.set_font("helvetica", "", 9)
                         pdf.write(7, f"{val}\n")
+                        
+                        # Si acabamos de imprimir la fecha, insertamos el tipo de caza
+                        if field.lower() == 'fecha' and tipo_caza_val:
+                            pdf.set_font("helvetica", "B", 9)
+                            pdf.write(7, "tipo de caza: ") # Respetamos el nombre pedido por el usuario
+                            pdf.set_font("helvetica", "", 9)
+                            pdf.write(7, f"{tipo_caza_val}\n")
                 
                 pdf.ln(4)
 
