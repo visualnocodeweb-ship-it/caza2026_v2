@@ -49,10 +49,11 @@ def send_email_with_attachment(to_email: str, subject: str, html_content: str, s
         
         email = resend.Emails.send(params)
         print(f"Correo con adjunto enviado con Resend. ID: {email['id']}")
-        return True
+        return True, f"Correo enviado. ID: {email['id']}"
     except Exception as e:
-        print(f"Error al enviar correo con adjunto con Resend: {e}")
-        return False
+        error_msg = str(e)
+        print(f"Error al enviar correo con adjunto con Resend: {error_msg}")
+        return False, error_msg
     
 def send_simple_email(to_email: str, subject: str, html_content: str, sender_email: str = "onboarding@resend.dev") -> bool:
     """
@@ -80,10 +81,11 @@ def send_simple_email(to_email: str, subject: str, html_content: str, sender_ema
         
         email = resend.Emails.send(params) # Usar resend.Emails.send() directamente
         print(f"Correo enviado con Resend. ID: {email['id']}")
-        return True
+        return True, f"Correo enviado. ID: {email['id']}"
     except Exception as e:
-        print(f"Error al enviar correo con Resend: {e}")
-        return False
+        error_msg = str(e)
+        print(f"Error al enviar correo con Resend: {error_msg}")
+        return False, error_msg
 
 # --- Ejemplo de Uso (solo para pruebas directas de este módulo) ---
 if __name__ == "__main__":

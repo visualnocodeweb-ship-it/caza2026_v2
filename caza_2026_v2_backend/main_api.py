@@ -1002,7 +1002,7 @@ async def send_guia_email(guia_id: str):
     safe_name = "".join([c if c.isalnum() else "_" for c in name])
     filename = f"{guia_id}_{safe_name}.pdf"
 
-    success = email_services.send_email_with_attachment(
+    success, error_msg = email_services.send_email_with_attachment(
         to_email=to_email,
         subject=subject,
         html_content=html_content,
@@ -1012,7 +1012,7 @@ async def send_guia_email(guia_id: str):
     )
 
     if not success:
-        raise HTTPException(status_code=500, detail="Error al enviar el email")
+        raise HTTPException(status_code=500, detail=f"Error al enviar el email: {error_msg}")
 
     return {"status": "success", "message": f"Email enviado correctamente a {to_email}"}
 
@@ -1107,7 +1107,7 @@ async def send_guia_cobro(request: GuiaCobroRequest):
         </html>
         """
 
-        success = email_services.send_simple_email(
+        success, error_msg = email_services.send_simple_email(
             to_email=email,
             subject=subject,
             html_content=html_content,
@@ -1115,7 +1115,7 @@ async def send_guia_cobro(request: GuiaCobroRequest):
         )
 
         if not success:
-            raise HTTPException(status_code=500, detail="Error al enviar el email de cobro")
+            raise HTTPException(status_code=500, detail=f"Error al enviar el email de cobro: {error_msg}")
 
         await log_activity('INFO', f'Guía Cobro Enviado: {guia_id}', f"Email={email}, Monto={amount}")
         return {"status": "success"}
@@ -1176,7 +1176,7 @@ async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
         filename = f"Guia_{request_data.res_id}.pdf"
 
         # 3. Enviar Email
-        success = email_services.send_email_with_attachment(
+        success, error_msg = email_services.send_email_with_attachment(
             to_email=request_data.email,
             subject=subject,
             html_content=html_content,
@@ -1186,7 +1186,7 @@ async def send_reses_guia_endpoint(request_data: SendResesGuiaRequest):
         )
 
         if not success:
-            raise HTTPException(status_code=500, detail="Error al enviar el email con Resend.")
+            raise HTTPException(status_code=500, detail=f"Error al enviar el email con Resend: {error_msg}")
 
         # 4. Registrar Acción
         query = sent_items.insert().values(
@@ -1242,7 +1242,7 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
         </html>
         """
 
-        success = email_services.send_simple_email(
+        success, error_msg = email_services.send_simple_email(
             to_email=request_data.email,
             subject=subject,
             html_content=html_content,
@@ -1250,7 +1250,7 @@ async def send_reses_payment_endpoint(request_data: SendResesPaymentRequest):
         )
 
         if not success:
-            raise HTTPException(status_code=500, detail="Error al enviar el email con Resend.")
+            raise HTTPException(status_code=500, detail=f"Error al enviar el email con Resend: {error_msg}")
 
         # 1. Registrar en sent_items (para etiquetas)
         query_sent = sent_items.insert().values(
@@ -2368,7 +2368,7 @@ async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
         """
         sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
 
-        email_sent = email_services.send_simple_email(
+        email_sent, email_error = email_services.send_simple_email(
             to_email=request_data.email,
             subject=subject,
             html_content=html_content,
@@ -2376,7 +2376,7 @@ async def send_payment_link_endpoint(request_data: SendPaymentLinkRequest):
         )
 
         if not email_sent:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro.")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Fallo al enviar el email de cobro: {email_error}")
 
         await log_activity('INFO', 'payment_link_sent', f'Envío de cobro (Inscripción) - ID: {request_data.inscription_id}, Monto: {precio_formateado}, Email: {request_data.email}. Preference ID: {payment_result["preference_id"]}')
         return {"message": "Email de cobro enviado exitosamente con link de MercadoPago."}
@@ -2409,7 +2409,7 @@ async def send_credential_endpoint(request_data: SendCredentialRequest):
         """
         sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
 
-        email_sent = email_services.send_simple_email(
+        email_sent, email_error = email_services.send_simple_email(
             to_email=request_data.email,
             subject=subject,
             html_content=html_content,
@@ -2417,7 +2417,7 @@ async def send_credential_endpoint(request_data: SendCredentialRequest):
         )
 
         if not email_sent:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar la credencial por email.")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Fallo al enviar la credencial por email: {email_error}")
 
         return {"message": "Credencial enviada exitosamente."}
     except Exception as e:
@@ -2604,7 +2604,7 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
         """
         sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
 
-        email_sent = email_services.send_simple_email(
+        email_sent, email_error = email_services.send_simple_email(
             to_email=request_data.email,
             subject=subject,
             html_content=html_content,
@@ -2612,7 +2612,7 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
         )
 
         if not email_sent:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email de cobro del permiso.")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Fallo al enviar el email de cobro del permiso: {email_error}")
 
         await log_activity('INFO', 'permiso_payment_link_sent', f'Envío de cobro (Permiso) - ID: {request_data.permiso_id}, Monto: {precio_formateado}, Email: {request_data.email}. Preference ID: {payment_result["preference_id"]}')
         return {"message": "Email de cobro de permiso enviado exitosamente con link de MercadoPago."}
@@ -2691,7 +2691,7 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
 
             if pdf_content:
                 # Enviar email con PDF adjunto
-                email_sent = email_services.send_email_with_attachment(
+                email_sent, email_error = email_services.send_email_with_attachment(
                     to_email=request_data.email,
                     subject=subject,
                     html_content=html_content,
@@ -2703,7 +2703,7 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
                 raise HTTPException(status_code=500, detail="No se pudo descargar el PDF")
         else:
             # Sin PDF, enviar email simple
-            email_sent = email_services.send_simple_email(
+            email_sent, email_error = email_services.send_simple_email(
                 to_email=request_data.email,
                 subject=subject,
                 html_content=f"<p>Estimado/a {request_data.nombre_apellido},</p><p>Su permiso está siendo procesado.</p>",
@@ -2711,7 +2711,7 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
             )
 
         if not email_sent:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo al enviar el email del permiso.")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Fallo al enviar el email del permiso: {email_error}")
 
         return {"message": "Permiso enviado exitosamente por email con PDF adjunto."}
     except Exception as e:
