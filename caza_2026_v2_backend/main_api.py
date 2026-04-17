@@ -18,6 +18,7 @@ from typing import Optional, List, Dict, Any
 from fpdf import FPDF
 import requests
 from io import BytesIO
+from PIL import Image
 import unicodedata
 
 # --- Helpers ---
@@ -912,12 +913,31 @@ async def generate_guia_completa_pdf(guia_id: str):
             img_url = data1.get('Imagen')
             if img_url:
                 try:
-                    response = requests.get(img_url, timeout=10)
+                    # Usamos 15s de timeout para permitir descargas lentas pero no infinitas
+                    response = requests.get(img_url, timeout=15)
                     if response.status_code == 200:
-                        img_data = BytesIO(response.content)
+                        # Abrir imagen con Pillow para optimizarla
+                        img = Image.open(BytesIO(response.content))
+                        
+                        # Asegurar compatibilidad (convertir a RGB)
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        
+                        # Redimensionar si es muy grande (max 1000px ancho) para liberar memoria y rapidez
+                        max_width = 1000
+                        if img.width > max_width:
+                            w_percent = (max_width / float(img.width))
+                            h_size = int((float(img.height) * float(w_percent)))
+                            img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
+                        
+                        # Guardar imagen optimizada en un buffer
+                        img_optimized = BytesIO()
+                        img.save(img_optimized, format='JPEG', quality=85)
+                        img_optimized.seek(0)
+
                         pdf.set_font("helvetica", "B", 10)
                         pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
-                        pdf.image(img_data, w=60) 
+                        pdf.image(img_optimized, w=60) 
                         pdf.ln(5)
                 except Exception as e:
                     await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
