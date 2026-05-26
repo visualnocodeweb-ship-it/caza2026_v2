@@ -1,0 +1,372 @@
+import React, { useEffect, useState } from 'react';
+import { fetchPermisosMenor, sendPermisoPaymentLink, sendPermisoEmailAPI, logSentItem, downloadPermisoMenorPdfAPI } from '../utils/api'; 
+import '../styles/App.css';
+import '../styles/Responsive.css';
+
+const RECORDS_PER_PAGE = 20;
+
+const PermisoCazaMenor = () => {
+  const [permisos, setPermisos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [expandedStates, setExpandedStates] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sendingPayment, setSendingPayment] = useState({});
+  const [sendingPermiso, setSendingPermiso] = useState({});
+  const [downloadingPdf, setDownloadingPdf] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  const getPermisos = async (page, search = '') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchPermisosMenor(page, RECORDS_PER_PAGE, search);
+
+      const mappedData = data.data.map(p => ({
+        ...p,
+        'ID': p['id'] || p['ID'],
+        'Nombre y Apellido': p['Nombre y apellido Cazador'] || p['Nombre y Apellido'],
+        'Dirección de correo electrónico': p['Email'] || p['Dirección de correo electrónico'],
+        'Categoría': p['Categoria'] || p['Categoría'],
+        'WhatsApp': p['Celular'] || p['WhatsApp'],
+        'ACM': p['Área de caza'] || p['ACM'],
+        'DNI': p['Dni'] || p['DNI o Pasaporte'],
+        'Ciudad': p['Ciudad'],
+        'Fecha Inicio Permiso': p['Fecha de inicio de permiso'],
+        'Foto DNI': p['Foto DNI'],
+        'Autorización Establecimiento': p['Autorización Establecimiento'],
+        'Completado por': p['Completado por']
+      }));
+
+      setPermisos(mappedData);
+      setTotalRecords(data.total_records);
+      setTotalPages(data.total_pages);
+
+      const initialExpandedStates = data.data.reduce((acc, _, index) => {
+        acc[index] = false;
+        return acc;
+      }, {});
+      setExpandedStates(initialExpandedStates);
+    } catch (err) {
+      console.error("Error al obtener permisos de caza menor:", err);
+      setError('No se pudieron cargar los permisos de caza menor.');
+      setPermisos([]);
+      setTotalRecords(0);
+      setTotalPages(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getPermisos(currentPage, searchTerm);
+  }, [currentPage, searchTerm]);
+
+  const toggleExpand = (index) => {
+    setExpandedStates(prevStates => ({
+      ...prevStates,
+      [index]: !prevStates[index]
+    }));
+  };
+
+  const handleSendEmail = (permiso) => {
+    if (!permiso['Dirección de correo electrónico']) {
+      alert('No hay dirección de correo para enviar.');
+      return;
+    }
+    const to = permiso['Dirección de correo electrónico'];
+    const subject = `Contacto desde Panel Caza Menor para ${permiso['Nombre y Apellido']}`;
+    const body = `Estimado/a ${permiso['Nombre y Apellido']},\n\nNos ponemos en contacto desde Caza 2026.\n\nSaludos cordiales,\nEl equipo de Caza 2026`;
+    window.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const updateSentStatusLocally = (permisoId, sentType) => {
+    setPermisos(prevPermisos =>
+      prevPermisos.map(perm =>
+        perm.ID === permisoId
+          ? { ...perm, sent_statuses: [...(perm.sent_statuses || []), sentType] }
+          : perm
+      )
+    );
+  };
+
+  const handleSendPermisoPayment = async (permiso, index) => {
+    if (!permiso['Dirección de correo electrónico'] || !permiso.ID || !permiso['Nombre y Apellido'] || !permiso['Categoría']) {
+      alert('Faltan datos esenciales (email, ID, nombre o categoría) para enviar el cobro.');
+      return;
+    }
+
+    setSendingPayment(prev => ({ ...prev, [index]: true }));
+    try {
+      await sendPermisoPaymentLink({
+        permiso_id: permiso.ID,
+        email: permiso['Dirección de correo electrónico'],
+        nombre_apellido: permiso['Nombre y Apellido'],
+        categoria: permiso['Categoría'],
+        tipo_permiso: 'menor',
+      });
+      await logSentItem({ item_id: permiso.ID, item_type: 'permiso_menor', sent_type: 'cobro' });
+      alert(`Email de cobro enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
+      updateSentStatusLocally(permiso.ID, 'cobro');
+    } catch (err) {
+      alert(`Error al enviar el email de cobro: ${err.message}`);
+    } finally {
+      setSendingPayment(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const handleSendPermiso = async (permiso, index) => {
+    if (!permiso['Dirección de correo electrónico'] || !permiso.ID) {
+      alert('Faltan datos esenciales (email o ID) para enviar el permiso.');
+      return;
+    }
+
+    setSendingPermiso(prev => ({ ...prev, [index]: true }));
+    try {
+      await sendPermisoEmailAPI({
+        permiso_id: permiso.ID,
+        email: permiso['Dirección de correo electrónico'],
+        nombre_apellido: permiso['Nombre y Apellido'],
+        tipo_permiso: 'menor',
+        datos_completos: permiso
+      });
+      await logSentItem({ item_id: permiso.ID, item_type: 'permiso_menor', sent_type: 'permiso' });
+      alert(`Permiso de caza menor enviado a ${permiso['Dirección de correo electrónico']} con éxito.`);
+      updateSentStatusLocally(permiso.ID, 'permiso');
+    } catch (err) {
+      alert(`Error al enviar el permiso: ${err.message}`);
+    } finally {
+      setSendingPermiso(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const handleDownloadPdf = async (permiso, index) => {
+    if (!permiso.ID) {
+      alert('Faltan el ID para generar el permiso.');
+      return;
+    }
+
+    setDownloadingPdf(prev => ({ ...prev, [index]: true }));
+    try {
+      const blob = await downloadPermisoMenorPdfAPI({
+        permiso_id: permiso.ID,
+        nombre_apellido: permiso['Nombre y Apellido'],
+        datos_completos: permiso
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Permiso_Menor_${(permiso['Nombre y Apellido'] || '').replace(/ /g, '_')}_${permiso.ID}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+    } catch (err) {
+      alert(`Error al descargar el PDF: ${err.message}`);
+    } finally {
+      setDownloadingPdf(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const handleSendPdf = async (permiso) => {
+    try {
+      await logSentItem({ item_id: permiso.ID, item_type: 'permiso_menor', sent_type: 'pdf' });
+      updateSentStatusLocally(permiso.ID, 'pdf');
+    } catch (err) {
+      alert(`Error al registrar la acción de ver PDF: ${err.message}`);
+    }
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Fecha inválida';
+    }
+    return date.toLocaleString();
+  };
+
+  if (loading && permisos.length === 0) {
+    return <p>Cargando permisos de caza menor...</p>;
+  }
+
+  if (error) {
+    return <p>Error al cargar permisos: {error}</p>;
+  }
+
+  return (
+    <div>
+      <div className="toolbar">
+        <input
+          type="text"
+          placeholder="Buscar por nombre o DNI..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+        />
+      </div>
+
+      {loading && permisos.length > 0 && <p>Actualizando permisos...</p>}
+
+      {permisos.length > 0 ? (
+        <div className="inscripciones-list">
+          {permisos.map((permiso, index) => (
+            <div key={permiso.ID || index} className={`inscripcion-card ${permiso['Estado de Pago'] === 'Pagado' ? 'pagado-bg' : 'pendiente-bg'}`} data-expanded={!!expandedStates[index]}>
+              <div className="card-header" onClick={() => toggleExpand(index)}>
+                <h3>
+                  {permiso['Nombre y Apellido'] || 'Nombre no disponible'}
+                  {permiso.sent_statuses && permiso.sent_statuses.includes('permiso') && (
+                    <span className="sent-checkmark" title="Permiso Enviado">✓</span>
+                  )}
+                </h3>
+                <span className="expand-toggle">▼</span>
+              </div>
+
+              {expandedStates[index] && (
+                <div className="card-details">
+                  <div className="detail-item">
+                    <span className="detail-label">ID</span>
+                    <span className="detail-value" style={{ fontWeight: 'bold', color: '#1e293b' }}>{permiso['ID'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">DNI</span>
+                    <span className="detail-value">{permiso['DNI'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Email</span>
+                    <span className="detail-value">{permiso['Dirección de correo electrónico'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Categoría</span>
+                    <span className="detail-value">{permiso['Categoría'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Área de Caza</span>
+                    <span className="detail-value">{permiso['ACM'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Celular</span>
+                    <span className="detail-value">
+                      {permiso.WhatsApp ? (
+                        <a href={`https://wa.me/${permiso.WhatsApp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="whatsapp-link">
+                          <i className="fab fa-whatsapp"></i> {permiso.WhatsApp}
+                        </a>
+                      ) : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Ciudad</span>
+                    <span className="detail-value">{permiso['Ciudad'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Fecha de Carga</span>
+                    <span className="detail-value">{formatDate(permiso.Fecha)}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Fecha Inicio Permiso</span>
+                    <span className="detail-value">{permiso['Fecha Inicio Permiso'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Foto DNI</span>
+                    <span className="detail-value">
+                      {permiso['Foto DNI'] ? <a href={permiso['Foto DNI']} target="_blank" rel="noopener noreferrer" style={{ color: '#0ea5e9', textDecoration: 'underline' }}>Ver Foto</a> : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Autorización Establecimiento</span>
+                    <span className="detail-value">
+                      {permiso['Autorización Establecimiento'] ? <a href={permiso['Autorización Establecimiento']} target="_blank" rel="noopener noreferrer" style={{ color: '#0ea5e9', textDecoration: 'underline' }}>Ver Autorización</a> : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Completado por</span>
+                    <span className="detail-value">{permiso['Completado por'] || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Estado de Cobro</span>
+                    <span className="detail-value">{permiso['Estado de Cobro Enviado'] || 'No Enviado'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Estado del Pago</span>
+                    <span className={`status-tag status-${(permiso['Estado de Pago'] || 'pendiente').toLowerCase()}`}>
+                      {permiso['Estado de Pago'] || 'Pendiente'}
+                    </span>
+                  </div>
+
+                  <div className="action-buttons">
+                    {permiso.pdf_link && (
+                      <a href={permiso.pdf_link} target="_blank" rel="noopener noreferrer" className="action-button btn-secondary" onClick={() => handleSendPdf(permiso)}>
+                        Ver PDF
+                      </a>
+                    )}
+                    {permiso['Dirección de correo electrónico'] && (
+                      <>
+                        <button
+                          onClick={() => handleSendEmail(permiso)}
+                          className="action-button btn-secondary"
+                        >
+                          Enviar Email
+                        </button>
+                        <button
+                          onClick={() => handleSendPermisoPayment(permiso, index)}
+                          disabled={sendingPayment[index] || permiso['Estado de Cobro Enviado'] === 'Enviado' || permiso['Estado de Pago'] === 'Pagado'}
+                          className="action-button btn-primary"
+                        >
+                          {sendingPayment[index] ? 'Enviando...' : (permiso['Estado de Cobro Enviado'] === 'Enviado' ? 'Cobro Enviado' : (permiso['Estado de Pago'] === 'Pagado' ? 'Pagado' : 'Enviar Cobro'))}
+                        </button>
+                        <button
+                          onClick={() => handleSendPermiso(permiso, index)}
+                          disabled={sendingPermiso[index] || permiso['Estado de Pago'] !== 'Pagado'}
+                          className={`action-button ${permiso['Estado de Pago'] === 'Pagado' ? 'btn-success' : 'btn-disabled'}`}
+                        >
+                          {sendingPermiso[index] ? 'Enviando...' : 'Enviar Permiso'}
+                        </button>
+                        <button
+                          onClick={() => handleDownloadPdf(permiso, index)}
+                          disabled={downloadingPdf[index]}
+                          className="action-button btn-secondary"
+                        >
+                          {downloadingPdf[index] ? 'Generando...' : 'Descargar PDF'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="sent-status-container">
+                    {permiso.sent_statuses && permiso.sent_statuses.length > 0 && (
+                      <p style={{ fontSize: '10px', color: '#64748B', margin: '5px 0 0', fontWeight: 'bold' }}>
+                        ENVIADO: {permiso.sent_statuses.map(status => status === 'permiso' ? 'PERMISO ENVIADO' : status.toUpperCase()).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="pagination-controls">
+            <button
+              onClick={() => setCurrentPage(prev => prev - 1)}
+              disabled={currentPage === 1 || loading}
+            >
+              Anterior
+            </button>
+            <span>Página {currentPage} de {totalPages} ({totalRecords} registros)</span>
+            <button
+              onClick={() => setCurrentPage(prev => prev + 1)}
+              disabled={currentPage === totalPages || loading}
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p>No se encontraron permisos de caza menor que coincidan con la búsqueda.</p>
+      )}
+    </div>
+  );
+};
+
+export default PermisoCazaMenor;

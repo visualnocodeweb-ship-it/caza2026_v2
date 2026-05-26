@@ -1,0 +1,71 @@
+def get_recaudaciones_stats():
+    await log_activity('INFO', 'get_recaudaciones_stats_request', 'Solicitud de estadísticas de recaudaciones.')
+    try:
+        # Recaudación total de inscripciones (estado 'approved')
+        total_inscripciones_aprobadas_query = select(func.sum(pagos.c.amount)).where(pagos.c.status == 'approved')
+        recaudacion_inscripciones = await database.fetch_val(total_inscripciones_aprobadas_query) or 0.0
+
+        # Recaudación total de permisos (estado 'approved')
+        total_permisos_aprobados_query = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
+        recaudacion_permisos = await database.fetch_val(total_permisos_aprobados_query) or 0.0
+        
+        # Recaudación total de reses (is_paid es True Y el ID existe en Google Sheets)
+        reses_sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        reses_df = sheets_services.read_sheet_data(reses_sheet_id, "reses")
+        valid_res_ids = []
+        if not reses_df.empty:
+            valid_res_ids = [safe_str_id(rid) for rid in reses_df['ID'].tolist() if safe_str_id(rid)]
+
+        if not valid_res_ids:
+            recaudacion_reses = 0.0
+        else:
+            total_reses_query = select(func.sum(reses_details.c.amount)).where(
+                reses_details.c.is_paid == True,
+                reses_details.c.res_id.in_(valid_res_ids)
+            )
+            recaudacion_reses = await database.fetch_val(total_reses_query) or 0.0
+
+        # Recaudación total de Guías de Traslado
+        guias_sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+        guias_df = sheets_services.read_sheet_data(guias_sheet_id, "cabeza_1")
+        valid_guia_ids = []
+        if not guias_df.empty:
+            valid_guia_ids = [str(gid) for gid in guias_df['ID'].tolist() if gid]
+        
+        if not valid_guia_ids:
+            recaudacion_guias = 0.0
+        else:
+            total_guias_query = select(func.sum(guias_details.c.amount)).where(
+                guias_details.c.is_paid == True,
+                guias_details.c.guia_id.in_(valid_guia_ids)
+            )
+            recaudacion_guias = await database.fetch_val(total_guias_query) or 0.0
+
+        recaudacion_total = recaudacion_inscripciones + recaudacion_permisos + recaudacion_reses + recaudacion_guias
+
+        # Recaudación de permisos por mes
+        recaudacion_permisos_por_mes_query = select(
+            func.to_char(pagos_permisos.c.date_created, 'YYYY-MM').label('mes'),
+            func.sum(pagos_permisos.c.amount).label('total')
+        ).where(
+            pagos_permisos.c.status == 'approved'
+        ).group_by(
+            'mes'
+        ).order_by(
+            'mes'
+        )
+
+        recaudacion_permisos_por_mes_raw = await database.fetch_all(recaudacion_permisos_por_mes_query)
+        recaudacion_permisos_por_mes = [{"name": r["mes"], "total": float(r["total"])} for r in recaudacion_permisos_por_mes_raw]
+
+        return {
+            "recaudacion_total": recaudacion_total,
+            "recaudacion_inscripciones": recaudacion_inscripciones,
+            "recaudacion_permisos": recaudacion_permisos,
+            "recaudacion_reses": recaudacion_reses,
+            "recaudacion_guias": recaudacion_guias,
+            "recaudacion_permisos_por_mes": recaudacion_permisos_por_mes
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_recaudaciones_stats_failed', f"Error al obtener estadísticas de recaudaciones: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

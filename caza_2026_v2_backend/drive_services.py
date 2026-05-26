@@ -1,8 +1,9 @@
 from googleapiclient import discovery, http
-from .auth_services import get_google_credentials
+from auth_services import get_google_credentials
 from dotenv import load_dotenv
 import os
 import io
+import time
 
 load_dotenv(encoding='latin-1') # Cargar variables de entorno del archivo .env
 
@@ -22,6 +23,9 @@ def get_drive_service():
     _cached_drive_service = service
     return service
 
+_pdf_cache = {}
+_PDF_CACHE_TTL = 180  # 3 minutes
+
 def list_pdfs_in_folder(folder_id):
     """
     Lista todos los archivos PDF en una carpeta específica de Google Drive.
@@ -33,6 +37,13 @@ def list_pdfs_in_folder(folder_id):
         list: Una lista de diccionarios, cada uno con 'name' y 'id' del archivo PDF.
               Retorna una lista vacía si no se encuentran PDFs o la carpeta no existe/es inaccesible.
     """
+    global _pdf_cache
+    current_time = time.time()
+    if folder_id in _pdf_cache:
+        cached_time, cached_pdfs = _pdf_cache[folder_id]
+        if current_time - cached_time < _PDF_CACHE_TTL:
+            return cached_pdfs
+
     service = get_drive_service()
     pdfs = []
     page_token = None
@@ -63,6 +74,8 @@ def list_pdfs_in_folder(folder_id):
         except Exception as e:
             print(f"Error al listar PDFs en la carpeta {folder_id}: {e}")
             break
+            
+    _pdf_cache[folder_id] = (current_time, pdfs)
     return pdfs
 
 def list_files_in_folder(folder_id):

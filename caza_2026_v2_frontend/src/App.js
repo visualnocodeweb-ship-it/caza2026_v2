@@ -7,6 +7,7 @@ import Login from './pages/Login';
 
 import Inscripciones from './pages/Inscripciones';
 import PermisoCaza from './pages/PermisoCaza';
+import PermisoCazaMenor from './pages/PermisoCazaMenor';
 import Dashboard from './pages/Dashboard';
 import InscripcionesStats from './pages/dashboard/InscripcionesStats';
 import RecaudacionesStats from './pages/dashboard/RecaudacionesStats';
@@ -53,6 +54,11 @@ const App = () => {
             <Route path="/permiso-caza" element={
               <PrivateRoute>
                 <PermisoCaza />
+              </PrivateRoute>
+            } />
+            <Route path="/permiso-caza-menor" element={
+              <PrivateRoute>
+                <PermisoCazaMenor />
               </PrivateRoute>
             } />
             <Route path="/pagos" element={

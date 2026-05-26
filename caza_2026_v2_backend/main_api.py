@@ -4,14 +4,14 @@ from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import fiscalizador
+from routers import fiscalizador
 import os
 import datetime
 import pandas as pd # Import pandas for data manipulation
 from sqlalchemy import select, func, desc
-from .database import database, engine, metadata
-from .models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items, reses_details, guias_details
-from . import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
+from database import database, engine, metadata
+from models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items, reses_details, guias_details
+import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
 import math # Needed for ceil
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -118,11 +118,14 @@ class SendPermisoPaymentLinkRequest(BaseModel):
     email: str
     nombre_apellido: str
     categoria: Optional[str] = None
+    tipo_permiso: Optional[str] = 'mayor'
 
 class SendPermisoEmailRequest(BaseModel):
     permiso_id: str
     email: str
     nombre_apellido: str
+    tipo_permiso: Optional[str] = 'mayor'
+    datos_completos: Optional[Dict[str, Any]] = None
 
 class GuiaCreate(BaseModel):
     guia_id: str
@@ -184,6 +187,8 @@ async def shutdown():
 # --- CORS Configuration ---
 origins = [
     "http://localhost:3000", "http://127.0.0.1:3000",
+    "http://localhost:3001", "http://127.0.0.1:3001",
+    "http://localhost:3005", "http://127.0.0.1:3005",
     "https://caza2026-frontend.onrender.com",
     "http://localhost:5174",                             # Fiscalizador — dev local
     "https://fiscalizador-caza-2026.onrender.com",      # Fiscalizador — producción
@@ -645,6 +650,84 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
     except Exception as e:
         await log_activity('ERROR', 'get_permisos_failed', f"Error al obtener permisos: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener permisos: {e}")
+
+@app.get("/api/permisos-menor", response_model=Dict[str, Any])
+async def get_permisos_menor(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
+    await log_activity('INFO', 'get_permisos_menor_request', f'Solicitud de permisos menor - Página: {page}, Límite: {limit}, Búsqueda: {search}')
+    try:
+        sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
+        permisos_tab_name = "caza_menor"
+        
+        df = sheets_services.read_sheet_data(sheet_id, permisos_tab_name)
+
+        if not df.empty:
+            # Añadir un número secuencial basado en el orden original de la hoja (para generar IDs tipo 2026-01)
+            df['numero_secuencial'] = df.index + 1
+            df = df.iloc[::-1]
+        
+        if df.empty:
+            return {"data": [], "total_records": 0, "page": page, "limit": limit, "total_pages": 0}
+
+        if search and str(search).strip():
+            search_terms = [normalize_text(t) for t in str(search).split() if t.strip()]
+            if search_terms:
+                combined_text = df.astype(str).apply(lambda x: " ".join(x), axis=1).apply(normalize_text)
+                mask = combined_text.apply(lambda x: all(term in x for term in search_terms))
+                df = df[mask]
+
+        total_records = len(df)
+        offset = (page - 1) * limit
+        total_pages = math.ceil(total_records / limit) if total_records > 0 else 0
+
+        paginated_data = df.iloc[offset : offset + limit].to_dict(orient="records")
+
+        # Simplificamos PDF y pagos para Caza Menor, o usamos la misma lógica sin PDF si no hay dict
+        for permiso in paginated_data:
+            permiso_id = safe_str_id(permiso.get('ID') or permiso.get('id'))
+            if permiso_id:
+                permiso['ID'] = permiso_id
+            
+            # Buscar si hay un pago aprobado
+            if permiso_id:
+                pago_query = select(pagos_permisos).where(
+                    pagos_permisos.c.permiso_id == permiso_id,
+                    pagos_permisos.c.status == 'approved'
+                )
+                pago_result = await database.fetch_one(pago_query)
+
+                if pago_result:
+                    permiso['Estado de Pago'] = 'Pagado'
+                    permiso['payment_id'] = pago_result['payment_id']
+                    permiso['fecha_pago'] = pago_result['date_created'].isoformat() if pago_result['date_created'] else None
+                else:
+                    any_pago_query = select(pagos_permisos).where(pagos_permisos.c.permiso_id == permiso_id)
+                    any_pago = await database.fetch_one(any_pago_query)
+                    if any_pago:
+                        permiso['Estado de Pago'] = any_pago['status'].capitalize()
+                    else:
+                        permiso['Estado de Pago'] = 'Pendiente'
+
+            # Enriquecer con estados de envío
+            if permiso_id:
+                sent_query = select(sent_items.c.sent_type).where(
+                    sent_items.c.item_id == permiso_id,
+                    sent_items.c.item_type == 'permiso_menor'
+                )
+                sent_results = await database.fetch_all(sent_query)
+                permiso['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
+            else:
+                permiso['sent_statuses'] = []
+
+        return {
+            "data": paginated_data,
+            "total_records": total_records,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        await log_activity('ERROR', 'get_permisos_menor_failed', f"Error al obtener permisos menor: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener permisos menor: {e}")
 
 @app.get("/api/reses", response_model=Dict[str, Any])
 async def get_reses(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
@@ -2531,54 +2614,61 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
         if not sheet_id:
             raise ValueError("GOOGLE_SHEET_ID no configurado.")
 
-        precios_df = sheets_services.read_sheet_data(sheet_id, "precios")
-
         # Buscar el precio según la categoría del permiso
         categoria = request_data.categoria
         if not categoria:
             raise ValueError("Categoría del permiso no especificada.")
 
-        # Normalización para búsqueda robusta
-        def normalize(t):
-            return " ".join(str(t).lower().strip().split())
+        if hasattr(request_data, 'tipo_permiso') and request_data.tipo_permiso == 'menor':
+            try:
+                precio = sheets_services.get_price_for_caza_menor(sheet_id, categoria)
+            except Exception as e:
+                await log_activity('WARNING', 'price_lookup_failed', f"Error en precios caza menor: {e}")
+                raise ValueError(f"No se encontró precio para la categoría de permiso menor: {categoria}")
+        else:
+            precios_df = sheets_services.read_sheet_data(sheet_id, "precios")
 
-        cat_norm = normalize(categoria)
-        
-        # Intentar coincidencia exacta primero (normalizada)
-        precios_df['Actividad_Norm'] = precios_df['Actividad'].apply(normalize)
-        precio_row = precios_df[precios_df['Actividad_Norm'] == cat_norm]
+            # Normalización para búsqueda robusta
+            def normalize(t):
+                return " ".join(str(t).lower().strip().split())
 
-        # Si no hay coincidencia exacta, intentar con contains (sin regex para evitar problemas con paréntesis)
-        if precio_row.empty:
-            precio_row = precios_df[precios_df['Actividad_Norm'].str.contains(cat_norm, regex=False, na=False)]
+            cat_norm = normalize(categoria)
+            
+            # Intentar coincidencia exacta primero (normalizada)
+            precios_df['Actividad_Norm'] = precios_df['Actividad'].apply(normalize)
+            precio_row = precios_df[precios_df['Actividad_Norm'] == cat_norm]
 
-        if precio_row.empty:
-            # Si sigue fallando, loguear las opciones disponibles para depuración
-            available = precios_df['Actividad'].tolist()
-            await log_activity('WARNING', 'price_lookup_failed', f"No se encontró '{categoria}'. Opciones: {available}")
-            raise ValueError(f"No se encontró precio para la categoría de permiso: {categoria}")
+            # Si no hay coincidencia exacta, intentar con contains (sin regex para evitar problemas con paréntesis)
+            if precio_row.empty:
+                precio_row = precios_df[precios_df['Actividad_Norm'].str.contains(cat_norm, regex=False, na=False)]
 
-        # Obtener el valor y limpiarlo
-        precio_str = str(precio_row.iloc[0]['Valor'])
-        # Limpieza robusta: quitar $, espacios, y manejar separadores
-        # Si tiene coma y punto, eliminar el separador de miles
-        p_clean = precio_str.replace('$', '').strip()
-        if ',' in p_clean and '.' in p_clean:
-            # Determinar cuál es el de miles. Si el punto está antes de la coma: 1.234,56
-            if p_clean.find('.') < p_clean.find(','):
-                p_clean = p_clean.replace('.', '').replace(',', '.')
-            else: # 1,234.56
-                p_clean = p_clean.replace(',', '')
-        elif ',' in p_clean:
-            # Solo tiene coma. En AR es decimal.
-            p_clean = p_clean.replace(',', '.')
-        
-        try:
-            precio = float(p_clean)
-        except ValueError:
-            # Fallback al método anterior si falló el nuevo, por si acaso
-            precio_limpio_old = precio_str.replace('$', '').replace(',', '').replace('.', '').strip()
-            precio = float(precio_limpio_old) / 100
+            if precio_row.empty:
+                # Si sigue fallando, loguear las opciones disponibles para depuración
+                available = precios_df['Actividad'].tolist()
+                await log_activity('WARNING', 'price_lookup_failed', f"No se encontró '{categoria}'. Opciones: {available}")
+                raise ValueError(f"No se encontró precio para la categoría de permiso: {categoria}")
+
+            # Obtener el valor y limpiarlo
+            precio_str = str(precio_row.iloc[0]['Valor'])
+            # Limpieza robusta: quitar $, espacios, y manejar separadores
+            # Si tiene coma y punto, eliminar el separador de miles
+            p_clean = precio_str.replace('$', '').strip()
+            if ',' in p_clean and '.' in p_clean:
+                # Determinar cuál es el de miles. Si el punto está antes de la coma: 1.234,56
+                if p_clean.find('.') < p_clean.find(','):
+                    p_clean = p_clean.replace('.', '').replace(',', '.')
+                else: # 1,234.56
+                    p_clean = p_clean.replace(',', '')
+            elif ',' in p_clean:
+                # Solo tiene coma. En AR es decimal.
+                p_clean = p_clean.replace(',', '.')
+            
+            try:
+                precio = float(p_clean)
+            except ValueError:
+                # Fallback al método anterior si falló el nuevo, por si acaso
+                precio_limpio_old = precio_str.replace('$', '').replace(',', '').replace('.', '').strip()
+                precio = float(precio_limpio_old) / 100
 
         # Crear preferencia de pago en MercadoPago
         payment_result = mercadopago_services.create_payment_preference(
@@ -2644,51 +2734,62 @@ async def send_permiso_payment_link_endpoint(request_data: SendPermisoPaymentLin
 async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
     await log_activity('INFO', 'send_permiso_email_request', f'Solicitud para enviar permiso a: {request_data.email} para permiso: {request_data.permiso_id}')
     try:
-        # Buscar PDF del permiso
-        permisos_folder_id = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
-        pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
-        pdf_id = None
-        pdf_filename = None
+        if getattr(request_data, 'tipo_permiso', 'mayor') == 'menor':
+            import pdf_generator
+            pdf_content = pdf_generator.generate_permiso_menor_pdf(
+                request_data.permiso_id,
+                request_data.datos_completos or {},
+                request_data.nombre_apellido
+            )
+            pdf_id = "generated"
+            pdf_filename = f"Permiso_Menor_{request_data.nombre_apellido.replace(' ', '_')}_{request_data.permiso_id}.pdf"
+        else:
+            # Buscar PDF del permiso en Drive
+            permisos_folder_id = "1ZynwbJewIsSodT8ogIm2AXanL2Am0IUt"
+            pdfs = drive_services.list_pdfs_in_folder(permisos_folder_id)
+            pdf_id = None
+            pdf_filename = None
 
         permiso_id_clean = safe_str_id(request_data.permiso_id)
         nombre_apellido_clean = safe_str_id(request_data.nombre_apellido).lower() if request_data.nombre_apellido else None
 
-        # Intentar match por ID primero
-        for pdf in pdfs:
-            if 'name' in pdf:
-                pdf_name_lower = pdf['name'].lower()
-                if safe_str_id(pdf['name'].replace('.pdf', '')) == permiso_id_clean:
-                    pdf_id = pdf.get('id')
-                    pdf_filename = pdf.get('name')
-                    break
-                # Buscar por nombre en el formato: permiso_caza{ID}_{Nombre}
-                if nombre_apellido_clean and nombre_apellido_clean in pdf_name_lower:
-                    pdf_id = pdf.get('id')
-                    pdf_filename = pdf.get('name')
-                    break
-        
-        # Si no hubo match por ID, intentar buscar por DNI en el sheet para ver si otro registro sí tiene match
-        if not pdf_id:
-            try:
-                sheet_id = os.getenv("GOOGLE_SHEET_ID")
-                df_permisos = sheets_services.read_sheet_data(sheet_id, "permisos")
-                # Buscar el DNI del permiso actual
-                current_permiso = df_permisos[df_permisos['ID'].astype(str).str.strip() == permiso_id_clean]
-                if not current_permiso.empty:
-                    dni = safe_str_id(current_permiso.iloc[0].get('DNI o Pasaporte'))
-                    if dni:
-                        # Buscar otros registros con el mismo DNI que SI tengan un PDF en Drive
-                        for _, row in df_permisos.iterrows():
-                            other_id = safe_str_id(row.get('ID'))
-                            if other_id and safe_str_id(row.get('DNI o Pasaporte')) == dni:
-                                for pdf in pdfs:
-                                    if 'name' in pdf and safe_str_id(pdf['name'].replace('.pdf', '')) == other_id:
-                                        pdf_id = pdf.get('id')
-                                        pdf_filename = pdf.get('name')
-                                        break
-                            if pdf_id: break
-            except Exception as e:
-                print(f"Error en fallback por DNI: {e}")
+        if getattr(request_data, 'tipo_permiso', 'mayor') != 'menor':
+            # Intentar match por ID primero
+            for pdf in pdfs:
+                if 'name' in pdf:
+                    pdf_name_lower = pdf['name'].lower()
+                    if safe_str_id(pdf['name'].replace('.pdf', '')) == permiso_id_clean:
+                        pdf_id = pdf.get('id')
+                        pdf_filename = pdf.get('name')
+                        break
+                    # Buscar por nombre en el formato: permiso_caza{ID}_{Nombre}
+                    if nombre_apellido_clean and nombre_apellido_clean in pdf_name_lower:
+                        pdf_id = pdf.get('id')
+                        pdf_filename = pdf.get('name')
+                        break
+            
+            # Si no hubo match por ID, intentar buscar por DNI en el sheet para ver si otro registro sí tiene match
+            if not pdf_id:
+                try:
+                    sheet_id = os.getenv("GOOGLE_SHEET_ID")
+                    df_permisos = sheets_services.read_sheet_data(sheet_id, "permisos")
+                    # Buscar el DNI del permiso actual
+                    current_permiso = df_permisos[df_permisos['ID'].astype(str).str.strip() == permiso_id_clean]
+                    if not current_permiso.empty:
+                        dni = safe_str_id(current_permiso.iloc[0].get('DNI o Pasaporte'))
+                        if dni:
+                            # Buscar otros registros con el mismo DNI que SI tengan un PDF en Drive
+                            for _, row in df_permisos.iterrows():
+                                other_id = safe_str_id(row.get('ID'))
+                                if other_id and safe_str_id(row.get('DNI o Pasaporte')) == dni:
+                                    for pdf in pdfs:
+                                        if 'name' in pdf and safe_str_id(pdf['name'].replace('.pdf', '')) == other_id:
+                                            pdf_id = pdf.get('id')
+                                            pdf_filename = pdf.get('name')
+                                            break
+                                if pdf_id: break
+                except Exception as e:
+                    print(f"Error en fallback por DNI: {e}")
 
         subject = f"Su permiso de caza {request_data.permiso_id}"
         html_content = f"""
@@ -2706,8 +2807,12 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
         sender_email = os.getenv("SENDER_EMAIL_RESEND", "onboarding@resend.dev")
 
         if pdf_id and pdf_filename:
-            # Descargar PDF de Google Drive
-            pdf_content = drive_services.download_file(pdf_id)
+            if getattr(request_data, 'tipo_permiso', 'mayor') == 'menor':
+                # PDF was generated in memory
+                pass
+            else:
+                # Descargar PDF de Google Drive
+                pdf_content = drive_services.download_file(pdf_id)
 
             if pdf_content:
                 # Enviar email con PDF adjunto
@@ -2720,7 +2825,7 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
                     attachment_filename=pdf_filename
                 )
             else:
-                raise HTTPException(status_code=500, detail="No se pudo descargar el PDF")
+                raise HTTPException(status_code=500, detail="No se pudo descargar o generar el PDF")
         else:
             # Sin PDF, enviar email simple
             email_sent, email_error = email_services.send_simple_email(
@@ -2777,3 +2882,30 @@ else:
     print(f"DEBUG: Current working directory: {os.getcwd()}")
     print(f"DEBUG: __file__ location: {os.path.abspath(__file__)}")
     print(f"DEBUG: Computed frontend_build_path: {os.path.abspath(frontend_build_path)}")
+
+class DownloadPermisoPdfRequest(BaseModel):
+    permiso_id: str
+    nombre_apellido: str
+    datos_completos: dict
+
+from fastapi.responses import Response
+
+@app.post("/api/permisos-menor/pdf")
+async def download_permiso_menor_pdf(request_data: DownloadPermisoPdfRequest):
+    try:
+        import pdf_generator
+        pdf_content = pdf_generator.generate_permiso_menor_pdf(
+            request_data.permiso_id,
+            request_data.datos_completos,
+            request_data.nombre_apellido
+        )
+        pdf_filename = f"Permiso_Menor_{request_data.nombre_apellido.replace(' ', '_')}_{request_data.permiso_id}.pdf"
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{pdf_filename}"'}
+        )
+    except Exception as e:
+        await log_activity('ERROR', 'download_pdf_failed', f"Error generando PDF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

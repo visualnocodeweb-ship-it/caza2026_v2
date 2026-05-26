@@ -1,5 +1,5 @@
 import sqlalchemy
-from .database import metadata
+from database import metadata
 from datetime import datetime, timezone
 
 pagos = sqlalchemy.Table(

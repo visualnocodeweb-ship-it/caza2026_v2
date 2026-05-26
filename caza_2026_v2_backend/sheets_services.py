@@ -1,9 +1,10 @@
 import logging
 from googleapiclient import discovery
-from .auth_services import get_google_credentials
+from auth_services import get_google_credentials
 from dotenv import load_dotenv
 import os
 import pandas as pd
+import time
 
 load_dotenv(encoding='latin-1') # Cargar variables de entorno del archivo .env
 
@@ -81,10 +82,22 @@ def update_cell(sheet_id, cell_range, values):
         logging.error(f"Error al actualizar celda {cell_range} en {sheet_id}: {e}", exc_info=True)
         raise
 
+_sheet_data_cache = {}
+_SHEET_DATA_CACHE_TTL = 60  # 1 minute
+
 def read_sheet_data(sheet_id, sheet_name):
     """
     Lee los datos de una hoja de cálculo específica de Google Sheets y los devuelve como un DataFrame de Pandas.
     """
+    global _sheet_data_cache
+    current_time = time.time()
+    cache_key = f"{sheet_id}_{sheet_name}"
+    
+    if cache_key in _sheet_data_cache:
+        cached_time, cached_df = _sheet_data_cache[cache_key]
+        if current_time - cached_time < _SHEET_DATA_CACHE_TTL:
+            return cached_df.copy()
+
     service = get_sheets_service()
     
     # Manejar el nombre de la hoja para la API de Google Sheets
@@ -125,10 +138,13 @@ def read_sheet_data(sheet_id, sheet_name):
             processed_rows.append(row[:num_headers])
 
         if not processed_rows:
-            return pd.DataFrame(columns=headers)
+            empty_df = pd.DataFrame(columns=headers)
+            _sheet_data_cache[cache_key] = (current_time, empty_df)
+            return empty_df.copy()
 
         df = pd.DataFrame(processed_rows, columns=headers)
-        return df
+        _sheet_data_cache[cache_key] = (current_time, df)
+        return df.copy()
     except Exception as e:
         logging.error(f"Error al leer datos de la hoja {sheet_id}/{sheet_name}: {e}", exc_info=True)
         raise
@@ -362,6 +378,55 @@ def get_price_for_categoria(sheet_id_param, sheet_name_param, categoria):
     # Limpiar y convertir el precio
     cleaned_price_str = str(precio_str).replace('$', '').replace(',', '').strip()
     return float(cleaned_price_str)
+
+
+def get_price_for_caza_menor(sheet_id_param, categoria):
+    """
+    Obtiene el precio de la hoja '$caza menor' basado en la categoría del permiso.
+    """
+    price_sheet_id = os.getenv("PRICES_SHEET_ID", sheet_id_param)
+    price_sheet_name = "$caza menor"
+
+    precios_df = read_sheet_data(price_sheet_id, price_sheet_name)
+    logging.info(f"Columnas del DataFrame de precios caza menor: {precios_df.columns.tolist()}")
+
+    if precios_df.empty:
+        raise ValueError("No se pudieron leer los datos de la hoja '$caza menor'.")
+
+    # Normalización para búsqueda robusta
+    def normalize(t):
+        return " ".join(str(t).lower().strip().split())
+
+    precios_df['Categoria_Norm'] = precios_df['Categoria'].apply(normalize)
+
+    categorias_separadas = [c.strip() for c in categoria.split(',')]
+    total_price = 0.0
+    
+    for cat in categorias_separadas:
+        if not cat: continue
+        cat_norm = normalize(cat)
+        
+        # Buscar el precio en el DataFrame
+        precio_row = precios_df[precios_df['Categoria_Norm'] == cat_norm]
+
+        if precio_row.empty:
+            # Intentar coincidencia parcial
+            precio_row = precios_df[precios_df['Categoria_Norm'].str.contains(cat_norm, regex=False, na=False)]
+
+        if precio_row.empty:
+            available = precios_df['Categoria'].tolist()
+            logging.warning(f"No se encontró '{cat}'. Opciones: {available}")
+            raise ValueError(f"No se encontró precio para la categoría de permiso menor: {cat}")
+
+        precio_str = precio_row.iloc[0].get('Valor')
+        
+        if precio_str is None:
+            raise ValueError(f"La columna 'Valor' no se encontró o está vacía para la categoría '{cat}'. Columnas: {precios_df.columns.tolist()}")
+
+        cleaned_price_str = str(precio_str).replace('$', '').replace(',', '').strip()
+        total_price += float(cleaned_price_str)
+
+    return total_price
 
 
 

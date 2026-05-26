@@ -1,8 +1,14 @@
 import os
 from databases import Database
 import sqlalchemy
+from dotenv import load_dotenv
+
+# Cargar variables de entorno (puede estar en la raíz o en el backend)
+load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 # SQLAlchemy requiere un dialecto específico en la URL para asyncpg
 db_url_for_sqlalchemy = DATABASE_URL

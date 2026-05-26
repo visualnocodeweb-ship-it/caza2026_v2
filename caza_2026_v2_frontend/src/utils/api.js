@@ -45,6 +45,24 @@ export const fetchPermisos = async (page = 1, limit = 20, search = '') => {
   }
 };
 
+export const fetchPermisosMenor = async (page = 1, limit = 20, search = '') => {
+  try {
+    let url = `${API_BASE_URL}/permisos-menor?page=${page}&limit=${limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching permisos menor:", error);
+    return { data: [], total_records: 0, page: 1, limit: 20, total_pages: 0 }; 
+  }
+};
+
 export const fetchReses = async (page = 1, limit = 20, search = '') => {
   try {
     let url = `${API_BASE_URL}/reses?page=${page}&limit=${limit}`;
@@ -357,6 +375,27 @@ export const sendPermisoEmailAPI = async (permisoData) => {
     return data;
   } catch (error) {
     console.error("Error sending permiso email:", error);
+    throw error;
+  }
+};
+
+export const downloadPermisoMenorPdfAPI = async (permisoData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/permisos-menor/pdf`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(permisoData),
+    });
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(errorData || `HTTP error! status: ${response.status}`);
+    }
+    const blob = await response.blob();
+    return blob;
+  } catch (error) {
+    console.error("Error downloading pdf:", error);
     throw error;
   }
 };

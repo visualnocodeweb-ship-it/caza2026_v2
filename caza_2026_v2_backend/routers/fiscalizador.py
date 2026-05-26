@@ -9,8 +9,8 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from typing import Dict, List, Any
 
-from ..database import database
-from ..models import pagos, pagos_permisos, reses_details, guias_details
+from database import database
+from models import pagos, pagos_permisos, reses_details, guias_details
 
 router = APIRouter(
     prefix="/api/fiscalizador",
