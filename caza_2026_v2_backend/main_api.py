@@ -15,7 +15,7 @@ import datetime
 import pandas as pd # Import pandas for data manipulation
 from sqlalchemy import select, func, desc
 from database import database, engine, metadata
-from models import logs, pagos, pagos_permisos, cobros_enviados, permisos_enviados, sent_items, reses_details, guias_details
+from models import logs, pagos, pagos_permisos, pagos_permisos_menor, cobros_enviados, permisos_enviados, sent_items, reses_details, guias_details
 import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
 import math # Needed for ceil
 from pydantic import BaseModel
@@ -1648,6 +1648,60 @@ async def get_permisos_stats():
         await log_activity('ERROR', 'get_permisos_stats_failed', f"Error al obtener estadísticas: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener estadísticas: {e}")
 
+@app.get("/api/stats/permisos-menor", response_model=Dict[str, Any])
+async def get_permisos_menor_stats():
+    await log_activity('INFO', 'get_permisos_menor_stats_request', 'Solicitud de estadísticas de permisos de caza menor')
+    try:
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        permisos_menor_tab_name = "caza_menor"
+        
+        if not sheet_id:
+            raise ValueError("GOOGLE_SHEET_ID no configurado.")
+
+        df = sheets_services.read_sheet_data(sheet_id, permisos_menor_tab_name)
+        
+        if df.empty:
+            return {"total_permisos": 0, "daily_stats": [], "monthly_stats": []}
+
+        date_col = None
+        possible_date_cols = ['Fecha', 'Fecha Creacion', 'fecha', 'timestamp', 'Timestamp', 'Date']
+        
+        for col in df.columns:
+            if any(p.lower() in col.lower() for p in possible_date_cols):
+                date_col = col
+                break
+        
+        if not date_col and not df.empty:
+             date_col = df.columns[-1]
+
+        total_permisos = len(df)
+        daily_stats = []
+        monthly_stats = []
+
+        if date_col:
+            try:
+                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+                df_dates = df.dropna(subset=[date_col])
+
+                daily_counts = df_dates.groupby(df_dates[date_col].dt.date).size().reset_index(name='count')
+                daily_stats = [{"date": str(row[date_col]), "count": row['count']} for _, row in daily_counts.iterrows()]
+                
+                monthly_counts = df_dates.groupby(df_dates[date_col].dt.to_period('M')).size().reset_index(name='count')
+                monthly_stats = [{"month": str(row[date_col]), "count": row['count']} for _, row in monthly_counts.iterrows()]
+
+            except Exception as e:
+                await log_activity('WARNING', 'stats_menor_date_parsing_failed', f"Error al procesar fechas: {e}")
+        
+        return {
+            "total_permisos": total_permisos,
+            "daily_stats": daily_stats,
+            "monthly_stats": monthly_stats
+        }
+
+    except Exception as e:
+        await log_activity('ERROR', 'get_permisos_menor_stats_failed', f"Error al obtener estadísticas: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/sent-items", response_model=Dict[str, Any])
 async def get_sent_items(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=100)):
     await log_activity('INFO', 'get_sent_items_request', f'Solicitud de sent items - Página: {page}, Límite: {limit}')
@@ -1757,23 +1811,28 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
                 # Limpiar prefijo per_ por si en el futuro se añade
                 clean_ref = external_reference.replace("per_", "").replace("PER_", "")
                 
+                # Determinar tabla en base al prefijo
+                is_mayor = clean_ref.startswith('permiso_caza')
+                tabla_destino = pagos_permisos if is_mayor else pagos_permisos_menor
+                tipo_log = 'permiso_mayor' if is_mayor else 'permiso_menor'
+
                 # Verificar si el pago ya existe
-                existing_query = select(pagos_permisos).where(pagos_permisos.c.payment_id == int(id))
+                existing_query = select(tabla_destino).where(tabla_destino.c.payment_id == int(id))
                 existing_pago = await database.fetch_one(existing_query)
 
                 if existing_pago:
                     # Actualizar el pago existente
-                    update_query = pagos_permisos.update().where(pagos_permisos.c.payment_id == int(id)).values(
+                    update_query = tabla_destino.update().where(tabla_destino.c.payment_id == int(id)).values(
                         status=status_payment,
                         status_detail=status_detail,
                         amount=amount,
                         email=payer_email
                     )
                     await database.execute(update_query)
-                    await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {id} para permiso {clean_ref} actualizado a status {status_payment}")
+                    await log_activity('INFO', f'{tipo_log}_pago_actualizado', f"Pago {id} para permiso {clean_ref} actualizado a status {status_payment}")
                 else:
                     # Insertar nuevo pago
-                    insert_query = pagos_permisos.insert().values(
+                    insert_query = tabla_destino.insert().values(
                         payment_id=int(id),
                         permiso_id=clean_ref,
                         status=status_payment,
@@ -1783,7 +1842,7 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
                         date_created=datetime.datetime.now(datetime.timezone.utc)
                     )
                     await database.execute(insert_query)
-                    await log_activity('INFO', 'permiso_pago_creado', f"Pago {id} para permiso {clean_ref} creado con status {status_payment}")
+                    await log_activity('INFO', f'{tipo_log}_pago_creado', f"Pago {id} para permiso {clean_ref} creado con status {status_payment}")
 
         return {"status": "ok"}
 
@@ -1864,8 +1923,9 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
     try:
         # Obtener pagos de inscripciones desde la tabla 'pagos'
         inscripciones_records = await database.fetch_all(pagos.select())
-        # Obtener pagos de permisos desde la tabla 'pagos_permisos'
+        # Obtener pagos de permisos (Mayor y Menor)
         permisos_records = await database.fetch_all(pagos_permisos.select())
+        permisos_menor_records = await database.fetch_all(pagos_permisos_menor.select())
         # Obtener pagos de guías desde la tabla 'guias_details'
         guias_records = await database.fetch_all(guias_details.select().where(guias_details.c.is_paid == True))
         # Obtener pagos de reses desde la tabla 'reses_details'
@@ -1899,7 +1959,23 @@ async def get_pagos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=
                 "permiso_id": safe_str_id(record["permiso_id"]),
                 "guia_id": None,
                 "res_id": None,
-                "type": "Permiso",
+                "type": "Permiso Caza Mayor",
+                "status": record["status"],
+                "status_detail": record["status_detail"],
+                "amount": record["amount"],
+                "email": record["email"],
+                "date_created": record["date_created"],
+            })
+
+        for record in permisos_menor_records:
+            all_payments.append({
+                "id": record["id"],
+                "payment_id": record["payment_id"],
+                "inscription_id": None,
+                "permiso_id": safe_str_id(record["permiso_id"]),
+                "guia_id": None,
+                "res_id": None,
+                "type": "Permiso Caza Menor",
                 "status": record["status"],
                 "status_detail": record["status_detail"],
                 "amount": record["amount"],
@@ -2191,10 +2267,16 @@ async def get_recaudaciones_stats():
         total_inscripciones_aprobadas_query = select(func.sum(pagos.c.amount)).where(pagos.c.status == 'approved')
         recaudacion_inscripciones = await database.fetch_val(total_inscripciones_aprobadas_query) or 0.0
 
-        # Recaudación total de permisos (estado 'approved')
-        total_permisos_aprobados_query = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
-        recaudacion_permisos = await database.fetch_val(total_permisos_aprobados_query) or 0.0
+        # Recaudación total de permisos MAYOR (estado 'approved')
+        total_permisos_mayor_query = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
+        recaudacion_permisos_mayor = await database.fetch_val(total_permisos_mayor_query) or 0.0
+
+        # Recaudación total de permisos MENOR (estado 'approved')
+        total_permisos_menor_query = select(func.sum(pagos_permisos_menor.c.amount)).where(pagos_permisos_menor.c.status == 'approved')
+        recaudacion_permisos_menor = await database.fetch_val(total_permisos_menor_query) or 0.0
         
+        recaudacion_permisos = recaudacion_permisos_mayor + recaudacion_permisos_menor
+
         # Recaudación total de reses (is_paid es True Y el ID existe en Google Sheets)
         reses_sheet_id = os.getenv("GOOGLE_SHEET_ID")
         reses_df = sheets_services.read_sheet_data(reses_sheet_id, "reses")
@@ -2248,6 +2330,8 @@ async def get_recaudaciones_stats():
             "recaudacion_total": recaudacion_total,
             "recaudacion_inscripciones": recaudacion_inscripciones,
             "recaudacion_permisos": recaudacion_permisos,
+            "recaudacion_permisos_mayor": recaudacion_permisos_mayor,
+            "recaudacion_permisos_menor": recaudacion_permisos_menor,
             "recaudacion_reses": recaudacion_reses,
             "recaudacion_guias": recaudacion_guias,
             "recaudacion_permisos_por_mes": recaudacion_permisos_por_mes

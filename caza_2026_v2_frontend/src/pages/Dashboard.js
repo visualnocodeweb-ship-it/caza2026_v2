@@ -19,7 +19,13 @@ const Dashboard = () => {
             to="/dashboard/permisos"
             className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
           >
-            Permisos
+            Permisos Caza Mayor
+          </NavLink>
+          <NavLink
+            to="/dashboard/permisos-menor"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            Permisos Caza Menor
           </NavLink>
           <NavLink
             to="/dashboard/recaudaciones"

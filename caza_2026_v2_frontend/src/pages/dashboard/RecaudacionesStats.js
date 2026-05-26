@@ -48,8 +48,12 @@ const RecaudacionesStats = () => {
           <div className="stat-widget-label">Recaudación por Inscripción</div>
         </div>
         <div className="stat-widget">
-          <div className="stat-widget-count">{loading ? '...' : formatCurrency(stats.recaudacion_permisos)}</div>
-          <div className="stat-widget-label">Recaudación por Permisos</div>
+          <div className="stat-widget-count">{loading ? '...' : formatCurrency(stats.recaudacion_permisos_mayor)}</div>
+          <div className="stat-widget-label">Recaudación Permisos Caza Mayor</div>
+        </div>
+        <div className="stat-widget">
+          <div className="stat-widget-count">{loading ? '...' : formatCurrency(stats.recaudacion_permisos_menor)}</div>
+          <div className="stat-widget-label">Recaudación Permisos Caza Menor</div>
         </div>
         <div className="stat-widget">
           <div className="stat-widget-count">{loading ? '...' : formatCurrency(stats.recaudacion_reses)}</div>

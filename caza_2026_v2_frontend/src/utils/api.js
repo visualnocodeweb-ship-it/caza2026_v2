@@ -478,6 +478,20 @@ export const fetchTotalInscripciones = async () => {
   }
 };
 
+export const fetchPermisosMenorStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/stats/permisos-menor`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching permisos menor stats:", error);
+    return { total_permisos_menor: 0 };
+  }
+};
+
 export const fetchPermisosStats = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/permisos/stats`);

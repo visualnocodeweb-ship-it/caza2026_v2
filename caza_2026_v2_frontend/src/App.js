@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import InscripcionesStats from './pages/dashboard/InscripcionesStats';
 import RecaudacionesStats from './pages/dashboard/RecaudacionesStats';
 import PermisosStats from './pages/dashboard/PermisosStats';
+import PermisosMenorStats from './pages/dashboard/PermisosMenorStats';
 import ResesStats from './pages/dashboard/ResesStats';
 import GuiasStats from './pages/dashboard/GuiasStats';
 import NotFound from './pages/NotFound';
@@ -95,6 +96,7 @@ const App = () => {
               <Route index element={<InscripcionesStats />} />
               <Route path="inscripciones" element={<InscripcionesStats />} />
               <Route path="permisos" element={<PermisosStats />} />
+              <Route path="permisos-menor" element={<PermisosMenorStats />} />
               <Route path="recaudaciones" element={<RecaudacionesStats />} />
               <Route path="reses" element={<ResesStats />} />
               <Route path="guias" element={<GuiasStats />} />
