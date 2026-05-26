@@ -14,7 +14,8 @@ export const AuthProvider = ({ children }) => {
         'Emanuel': 'Emanuel321',
         'Nico': 'Nico321',
         'algar': 'algarmariano',
-        'fauna1': 'fauna1nqn'
+        'fauna1': 'fauna1nqn',
+        'cazamenor': 'cazamenor'
     };
 
     const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
@@ -51,6 +52,8 @@ export const AuthProvider = ({ children }) => {
                 navigate('/algar-sa');
             } else if (userKey === 'fauna1') {
                 navigate('/guias-traslados-varios');
+            } else if (userKey === 'cazamenor') {
+                navigate('/permiso-caza-menor');
             } else {
                 navigate('/dashboard');
             }

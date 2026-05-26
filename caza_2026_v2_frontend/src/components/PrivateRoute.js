@@ -25,6 +25,11 @@ const PrivateRoute = ({ children }) => {
         return <Navigate to="/guias-traslados-varios" replace />;
     }
 
+    // Restriction for cazamenor user
+    if (user === 'cazamenor' && currentPath !== '/permiso-caza-menor') {
+        return <Navigate to="/permiso-caza-menor" replace />;
+    }
+
     return children;
 };
 

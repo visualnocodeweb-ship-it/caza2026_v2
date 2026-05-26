@@ -29,6 +29,7 @@ const DashboardNavigate = () => {
   if (!user) return <Navigate to="/login" replace />;
   if (user === 'algar') return <Navigate to="/algar-sa" replace />;
   if (user === 'fauna1') return <Navigate to="/guias-traslados-varios" replace />;
+  if (user === 'cazamenor') return <Navigate to="/permiso-caza-menor" replace />;
   return <Navigate to="/inscripciones" replace />;
 };
 
