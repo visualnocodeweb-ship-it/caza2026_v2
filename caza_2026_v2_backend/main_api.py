@@ -694,9 +694,9 @@ async def get_permisos_menor(page: int = Query(1, ge=1), limit: int = Query(10, 
             
             # Buscar si hay un pago aprobado
             if permiso_id:
-                pago_query = select(pagos_permisos).where(
-                    pagos_permisos.c.permiso_id == permiso_id,
-                    pagos_permisos.c.status == 'approved'
+                pago_query = select(pagos_permisos_menor).where(
+                    pagos_permisos_menor.c.permiso_id == permiso_id,
+                    pagos_permisos_menor.c.status == 'approved'
                 )
                 pago_result = await database.fetch_one(pago_query)
 
@@ -705,7 +705,7 @@ async def get_permisos_menor(page: int = Query(1, ge=1), limit: int = Query(10, 
                     permiso['payment_id'] = pago_result['payment_id']
                     permiso['fecha_pago'] = pago_result['date_created'].isoformat() if pago_result['date_created'] else None
                 else:
-                    any_pago_query = select(pagos_permisos).where(pagos_permisos.c.permiso_id == permiso_id)
+                    any_pago_query = select(pagos_permisos_menor).where(pagos_permisos_menor.c.permiso_id == permiso_id)
                     any_pago = await database.fetch_one(any_pago_query)
                     if any_pago:
                         permiso['Estado de Pago'] = any_pago['status'].capitalize()
