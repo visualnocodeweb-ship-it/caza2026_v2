@@ -1,11 +1,16 @@
 import logging
+import sys
+import os
+
+# Ensure the backend directory is in the Python path so imports work when run from the root directory in Render
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 # v2.0.2 - Consolidación de Algar SA y Login Especial
 from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from routers import fiscalizador
-import os
 import datetime
 import pandas as pd # Import pandas for data manipulation
 from sqlalchemy import select, func, desc
