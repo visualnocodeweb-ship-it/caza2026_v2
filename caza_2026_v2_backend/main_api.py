@@ -1753,7 +1753,10 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
                     await database.execute(insert_query)
                     await log_activity('INFO', 'inscripcion_pago_creado', f"Pago {id} para inscripción {external_reference} creado con status {status_payment}")
 
-            elif external_reference and "per" in external_reference.lower():  # Es un permiso
+            elif external_reference:  # Si no es inscripción, es un permiso
+                # Limpiar prefijo per_ por si en el futuro se añade
+                clean_ref = external_reference.replace("per_", "").replace("PER_", "")
+                
                 # Verificar si el pago ya existe
                 existing_query = select(pagos_permisos).where(pagos_permisos.c.payment_id == int(id))
                 existing_pago = await database.fetch_one(existing_query)
@@ -1767,12 +1770,12 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
                         email=payer_email
                     )
                     await database.execute(update_query)
-                    await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {id} para permiso {external_reference} actualizado a status {status_payment}")
+                    await log_activity('INFO', 'permiso_pago_actualizado', f"Pago {id} para permiso {clean_ref} actualizado a status {status_payment}")
                 else:
                     # Insertar nuevo pago
                     insert_query = pagos_permisos.insert().values(
                         payment_id=int(id),
-                        permiso_id=external_reference,
+                        permiso_id=clean_ref,
                         status=status_payment,
                         status_detail=status_detail,
                         amount=amount,
@@ -1780,7 +1783,7 @@ async def handle_payment_webhook(id: str = Query(None), topic: str = Query(None)
                         date_created=datetime.datetime.now(datetime.timezone.utc)
                     )
                     await database.execute(insert_query)
-                    await log_activity('INFO', 'permiso_pago_creado', f"Pago {id} para permiso {external_reference} creado con status {status_payment}")
+                    await log_activity('INFO', 'permiso_pago_creado', f"Pago {id} para permiso {clean_ref} creado con status {status_payment}")
 
         return {"status": "ok"}
 
