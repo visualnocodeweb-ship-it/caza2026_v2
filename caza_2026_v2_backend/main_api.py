@@ -24,6 +24,8 @@ from fpdf import FPDF
 import requests
 from io import BytesIO
 from PIL import Image
+from pillow_heif import register_heif_opener
+register_heif_opener()
 import unicodedata
 
 # --- Helpers ---
@@ -2935,6 +2937,58 @@ async def send_permiso_email_endpoint(request_data: SendPermisoEmailRequest):
         await log_activity('ERROR', 'send_permiso_email_failed', f"Error al enviar permiso por email: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al enviar permiso por email: {e}")
 
+class DownloadPermisoPdfRequest(BaseModel):
+    permiso_id: str
+    nombre_apellido: str
+    datos_completos: dict
+
+from fastapi.responses import Response
+
+@app.post("/api/permisos-menor/pdf")
+async def download_permiso_menor_pdf(request_data: DownloadPermisoPdfRequest):
+    try:
+        import pdf_generator
+        pdf_content = pdf_generator.generate_permiso_menor_pdf(
+            request_data.permiso_id,
+            request_data.datos_completos,
+            request_data.nombre_apellido
+        )
+        pdf_filename = f"Permiso_Menor_{request_data.nombre_apellido.replace(' ', '_')}_{request_data.permiso_id}.pdf"
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{pdf_filename}"'}
+        )
+    except Exception as e:
+        await log_activity('ERROR', 'download_pdf_failed', f"Error generando PDF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/convert-heic")
+async def convert_heic_endpoint(url: str = Query(..., description="URL de la imagen HEIC a convertir")):
+    await log_activity('INFO', 'convert_heic_request', f'Conversión de imagen HEIC iniciada para: {url}')
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+        }
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        # Abrir la imagen con Pillow
+        image = Image.open(BytesIO(response.content))
+        
+        # Convertir a JPEG en memoria
+        output = BytesIO()
+        image.save(output, format="JPEG")
+        jpeg_data = output.getvalue()
+        
+        return Response(content=jpeg_data, media_type="image/jpeg")
+    except Exception as e:
+        await log_activity('ERROR', 'convert_heic_failed', f'Error al convertir imagen HEIC ({url}): {e}')
+        # Si falla, hacemos una redirección al original
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=url)
+
 # --- Serve React Frontend (Deployment Fix) ---
 # Adjust path to where the frontend build is located relative to this file
 # Assuming structure:
@@ -2975,29 +3029,3 @@ else:
     print(f"DEBUG: __file__ location: {os.path.abspath(__file__)}")
     print(f"DEBUG: Computed frontend_build_path: {os.path.abspath(frontend_build_path)}")
 
-class DownloadPermisoPdfRequest(BaseModel):
-    permiso_id: str
-    nombre_apellido: str
-    datos_completos: dict
-
-from fastapi.responses import Response
-
-@app.post("/api/permisos-menor/pdf")
-async def download_permiso_menor_pdf(request_data: DownloadPermisoPdfRequest):
-    try:
-        import pdf_generator
-        pdf_content = pdf_generator.generate_permiso_menor_pdf(
-            request_data.permiso_id,
-            request_data.datos_completos,
-            request_data.nombre_apellido
-        )
-        pdf_filename = f"Permiso_Menor_{request_data.nombre_apellido.replace(' ', '_')}_{request_data.permiso_id}.pdf"
-        
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{pdf_filename}"'}
-        )
-    except Exception as e:
-        await log_activity('ERROR', 'download_pdf_failed', f"Error generando PDF: {e}")
-        raise HTTPException(status_code=500, detail=str(e))

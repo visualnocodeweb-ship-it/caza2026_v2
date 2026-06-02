@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchGuiasTraslados, getGuiaPdfUrl, sendGuiaEmail, saveGuiaPago, sendGuiaCobro } from '../utils/api';
+import { fetchGuiasTraslados, getGuiaPdfUrl, sendGuiaEmail, saveGuiaPago, sendGuiaCobro, getImageUrl } from '../utils/api';
 import '../styles/App.css';
 import '../styles/Responsive.css';
 
@@ -254,7 +254,7 @@ const GuiasTraslados = () => {
                                     {item['Imagen'] && (
                                         <div style={{ marginTop: '15px' }}>
                                             <strong>Imagen:</strong><br />
-                                            <img src={item['Imagen']} alt="Registro" style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px', marginTop: '10px' }} />
+                                            <img src={getImageUrl(item['Imagen'])} alt="Registro" style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px', marginTop: '10px' }} />
                                         </div>
                                     )}
 

@@ -8,6 +8,14 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://caza2026-1.onrender.com/api'
   : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
 
+export const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.toLowerCase().endsWith('.heic')) {
+    return `${API_BASE_URL}/convert-heic?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+};
+
 export const fetchInscripciones = async (page = 1, limit = 20, search = '') => {
   try {
     let url = `${API_BASE_URL}/inscripciones?page=${page}&limit=${limit}`;

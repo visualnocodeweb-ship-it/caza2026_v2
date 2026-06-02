@@ -16,3 +16,4 @@ databases[postgresql]
 fpdf2
 qrcode
 Pillow
+pillow-heif
