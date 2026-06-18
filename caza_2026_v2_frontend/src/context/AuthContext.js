@@ -15,7 +15,8 @@ export const AuthProvider = ({ children }) => {
         'Nico': 'Nico321',
         'algar': 'algarmariano',
         'fauna1': 'fauna1nqn',
-        'cazamenor': 'cazamenor'
+        'cazamenor': 'cazamenor',
+        'Maga': 'Maga123'
     };
 
     const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds

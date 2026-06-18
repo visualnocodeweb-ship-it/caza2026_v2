@@ -184,7 +184,11 @@ async def startup():
     except Exception as e:
         print(f"Nota: No se pudo agregar la columna is_paid (posiblemente ya existe). {e}")
 
-    await log_activity('INFO', 'startup', 'Aplicación iniciada.')
+    # Iniciar la sincronización periódica con J.A.R.V.I.S. en segundo plano
+    import asyncio
+    asyncio.create_task(run_jarvis_sync_periodically())
+
+    await log_activity('INFO', 'startup', 'Aplicación iniciada con sincronización J.A.R.V.I.S.')
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -3000,6 +3004,205 @@ frontend_build_path = os.path.join(os.path.dirname(__file__), "..", "caza_2026_v
 @app.get("/api/test-routing")
 async def test_routing():
     return {"status": "routing_works", "message": "Si ves esto, las rutas API funcionan."}
+
+def send_jarvis_webhook(payload):
+    try:
+        import requests
+        jarvis_webhook_url = os.getenv("JARVIS_WEBHOOK_URL", "http://localhost:3000/api/permisos/webhook")
+        r = requests.post(jarvis_webhook_url, json=payload, timeout=10)
+        print(f"[J.A.R.V.I.S. Webhook Caza] Stats enviadas. Status: {r.status_code}")
+    except Exception as ex:
+        print(f"[J.A.R.V.I.S. Webhook Caza] Error al enviar POST: {ex}")
+
+async def sync_stats_to_jarvis():
+    try:
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        if not sheet_id:
+            return
+            
+        # 1. Total Inscripciones
+        try:
+            df_insc = sheets_services.read_sheet_data(sheet_id, "inscrip")
+            total_insc = len(df_insc) if not df_insc.empty else 0
+        except Exception:
+            total_insc = 0
+            
+        # 2. Total Caza Mayor
+        try:
+            df_mayor = sheets_services.read_sheet_data(sheet_id, "permisos")
+            total_mayor = len(df_mayor) if not df_mayor.empty else 0
+        except Exception:
+            total_mayor = 0
+
+        # 3. Total Caza Menor
+        try:
+            df_menor = sheets_services.read_sheet_data(sheet_id, "caza_menor")
+            total_menor = len(df_menor) if not df_menor.empty else 0
+        except Exception:
+            total_menor = 0
+
+        # 4. Total Reses
+        try:
+            df_reses = sheets_services.read_sheet_data(sheet_id, "reses")
+            total_reses = len(df_reses) if not df_reses.empty else 0
+        except Exception:
+            total_reses = 0
+
+        # 5. Total Guías
+        try:
+            df_guias = sheets_services.read_sheet_data(sheet_id, "cabeza_1")
+            total_guias = len(df_guias) if not df_guias.empty else 0
+        except Exception:
+            total_guias = 0
+
+        # 6. Recaudación Total
+        try:
+            recaudacion_insc_query = select(func.sum(pagos.c.amount)).where(pagos.c.status == 'approved')
+            recaudacion_insc = await database.fetch_val(recaudacion_insc_query) or 0.0
+
+            recaudacion_mayor_query = select(func.sum(pagos_permisos.c.amount)).where(pagos_permisos.c.status == 'approved')
+            recaudacion_mayor = await database.fetch_val(recaudacion_mayor_query) or 0.0
+
+            recaudacion_menor_query = select(func.sum(pagos_permisos_menor.c.amount)).where(pagos_permisos_menor.c.status == 'approved')
+            recaudacion_menor = await database.fetch_val(recaudacion_menor_query) or 0.0
+
+            # reses
+            valid_res_ids = []
+            if not df_reses.empty:
+                valid_res_ids = [safe_str_id(rid) for rid in df_reses['ID'].tolist() if safe_str_id(rid)]
+            if not valid_res_ids:
+                recaudacion_reses = 0.0
+            else:
+                total_reses_query = select(func.sum(reses_details.c.amount)).where(
+                    reses_details.c.is_paid == True,
+                    reses_details.c.res_id.in_(valid_res_ids)
+                )
+                recaudacion_reses = await database.fetch_val(total_reses_query) or 0.0
+
+            # guias
+            valid_guia_ids = []
+            if not df_guias.empty:
+                valid_guia_ids = [str(gid) for gid in df_guias['ID'].tolist() if gid]
+            if not valid_guia_ids:
+                recaudacion_guias = 0.0
+            else:
+                total_guias_query = select(func.sum(guias_details.c.amount)).where(
+                    guias_details.c.is_paid == True,
+                    guias_details.c.guia_id.in_(valid_guia_ids)
+                )
+                recaudacion_guias = await database.fetch_val(total_guias_query) or 0.0
+
+            recaudacion_total = recaudacion_insc + recaudacion_mayor + recaudacion_menor + recaudacion_reses + recaudacion_guias
+        except Exception:
+            recaudacion_total = 0.0
+
+        # Obtener los 3 últimos registros de cada sección para mostrarlos en el historial
+        latest_insc_regs = []
+        try:
+            if not df_insc.empty:
+                for _, row in df_insc.head(3).iterrows():
+                    nombre = row.get("nombre_completo") or row.get("razon_social") or row.get("Nombre o Razón Social del Establecimiento") or row.get("nombre") or "Inscripción"
+                    fecha = row.get("fecha_creacion") or row.get("Fecha") or ""
+                    latest_insc_regs.append({
+                        "name": str(nombre).strip(),
+                        "timestamp": str(fecha).strip(),
+                        "type": "Inscripción"
+                    })
+        except Exception:
+            pass
+
+        latest_mayor_regs = []
+        try:
+            if not df_mayor.empty:
+                for _, row in df_mayor.head(3).iterrows():
+                    nombre = row.get("Nombre y Apellido del cazador") or row.get("Nombre") or "Cazador"
+                    fecha = row.get("fecha_creacion") or row.get("Fecha") or ""
+                    latest_mayor_regs.append({
+                        "name": str(nombre).strip(),
+                        "timestamp": str(fecha).strip(),
+                        "type": "Caza Mayor"
+                    })
+        except Exception:
+            pass
+
+        latest_menor_regs = []
+        try:
+            if not df_menor.empty:
+                for _, row in df_menor.head(3).iterrows():
+                    nombre = row.get("Nombre y Apellido del cazador") or row.get("Nombre") or "Cazador"
+                    fecha = row.get("fecha_creacion") or row.get("Fecha") or ""
+                    latest_menor_regs.append({
+                        "name": str(nombre).strip(),
+                        "timestamp": str(fecha).strip(),
+                        "type": "Caza Menor"
+                    })
+        except Exception:
+            pass
+
+        latest_reses_regs = []
+        try:
+            if not df_reses.empty:
+                for _, row in df_reses.head(3).iterrows():
+                    nombre = row.get("nombre_solicitante") or row.get("Nombre") or "Precintos Reses"
+                    fecha = row.get("fecha_creacion") or row.get("Fecha") or ""
+                    latest_reses_regs.append({
+                        "name": str(nombre).strip(),
+                        "timestamp": str(fecha).strip(),
+                        "type": "Reses"
+                    })
+        except Exception:
+            pass
+
+        latest_guias_regs = []
+        try:
+            if not df_guias.empty:
+                for _, row in df_guias.head(3).iterrows():
+                    nombre = row.get("nombre_transportista") or row.get("Nombre") or "Guía Transporte"
+                    fecha = row.get("fecha_creacion") or row.get("Fecha") or ""
+                    latest_guias_regs.append({
+                        "name": str(nombre).strip(),
+                        "timestamp": str(fecha).strip(),
+                        "type": "Guía"
+                    })
+        except Exception:
+            pass
+
+        payload = {
+            "caza_permits_total": total_mayor + total_menor,
+            "caza_permits_enviados": total_mayor,
+            "caza_permits_pendientes": total_menor,
+            "caza_inscripciones": total_insc,
+            "caza_mayor": total_mayor,
+            "caza_menor": total_menor,
+            "caza_reses": total_reses,
+            "caza_guias": total_guias,
+            "caza_recaudacion": int(recaudacion_total),
+            "caza_inscripciones_recaudacion": int(recaudacion_insc),
+            "caza_mayor_recaudacion": int(recaudacion_mayor),
+            "caza_menor_recaudacion": int(recaudacion_menor),
+            "caza_reses_recaudacion": int(recaudacion_reses),
+            "caza_guias_recaudacion": int(recaudacion_guias),
+            "caza_permits_latest": latest_mayor_regs,
+            "caza_latest_all": {
+                "inscripciones": latest_insc_regs,
+                "caza_mayor": latest_mayor_regs,
+                "caza_menor": latest_menor_regs,
+                "reses": latest_reses_regs,
+                "guias": latest_guias_regs
+            }
+        }
+        
+        import threading
+        threading.Thread(target=send_jarvis_webhook, args=(payload,), daemon=True).start()
+    except Exception as ex:
+        print(f"[J.A.R.V.I.S. Webhook Caza] Error al sincronizar estadísticas: {ex}")
+
+async def run_jarvis_sync_periodically():
+    import asyncio
+    await asyncio.sleep(5)
+    while True:
+        await sync_stats_to_jarvis()
+        await asyncio.sleep(120)
 
 if os.path.exists(frontend_build_path):
     # Mount static assets (JS, CSS, images)
