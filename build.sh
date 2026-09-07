@@ -6,6 +6,6 @@ pip install -r requirements.txt
 
 cd caza_2026_v2_frontend
 npm install
-# Prevent warnings from breaking the build
-CI=false npm run build
+# Node 22 rompe eslint-config-react-app; desactivar ESLint en build de prod
+DISABLE_ESLINT_PLUGIN=true CI=false npm run build
 cd ..
