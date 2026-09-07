@@ -8,10 +8,41 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://caza2026-1.onrender.com/api'
   : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
 
+const appendAccessToken = (url) => {
+  const token = localStorage.getItem('caza_token');
+  if (!token) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}access_token=${encodeURIComponent(token)}`;
+};
+
+function getAuthHeaders(extraHeaders = {}) {
+  const headers = { ...extraHeaders };
+  const token = localStorage.getItem('caza_token');
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function apiFetch(url, options = {}) {
+  const headers = getAuthHeaders(options.headers || {});
+  const response = await apiFetch(url, { ...options, headers });
+  if (response.status === 401) {
+    localStorage.removeItem('caza_token');
+    localStorage.removeItem('caza_user');
+    localStorage.removeItem('caza_login_time');
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    throw new Error('Sesión expirada o no autorizada');
+  }
+  return response;
+}
+
 export const getImageUrl = (url) => {
   if (!url) return '';
   if (url.toLowerCase().endsWith('.heic')) {
-    return `${API_BASE_URL}/convert-heic?url=${encodeURIComponent(url)}`;
+    return appendAccessToken(`${API_BASE_URL}/convert-heic?url=${encodeURIComponent(url)}`);
   }
   return url;
 };
@@ -23,7 +54,7 @@ export const fetchInscripciones = async (page = 1, limit = 20, search = '') => {
       url += `&search=${encodeURIComponent(search)}`;
     }
     console.log("Fetching URL:", url); // DEBUG
-    const response = await fetch(url);
+    const response = await apiFetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -41,7 +72,7 @@ export const fetchPermisos = async (page = 1, limit = 20, search = '') => {
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
     }
-    const response = await fetch(url);
+    const response = await apiFetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -59,7 +90,7 @@ export const fetchPermisosMenor = async (page = 1, limit = 20, search = '') => {
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
     }
-    const response = await fetch(url);
+    const response = await apiFetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -77,7 +108,7 @@ export const fetchReses = async (page = 1, limit = 20, search = '') => {
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
     }
-    const response = await fetch(url);
+    const response = await apiFetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -91,7 +122,7 @@ export const fetchReses = async (page = 1, limit = 20, search = '') => {
 
 export const sendResesGuia = async (guiaData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/send-reses-guia`, {
+    const response = await apiFetch(`${API_BASE_URL}/send-reses-guia`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -112,7 +143,7 @@ export const sendResesGuia = async (guiaData) => {
 
 export const sendResesPayment = async (paymentData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/send-reses-payment`, {
+    const response = await apiFetch(`${API_BASE_URL}/send-reses-payment`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -133,7 +164,7 @@ export const sendResesPayment = async (paymentData) => {
 
 export const logResesAction = async (actionData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/reses/log-action`, {
+    const response = await apiFetch(`${API_BASE_URL}/reses/log-action`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,7 +185,7 @@ export const logResesAction = async (actionData) => {
 
 export const fetchResesStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/reses/stats`);
+    const response = await apiFetch(`${API_BASE_URL}/reses/stats`);
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
@@ -168,7 +199,7 @@ export const fetchResesStats = async () => {
 
 export const fetchErrorLog = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/error-log`);
+    const response = await apiFetch(`${API_BASE_URL}/error-log`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -183,7 +214,7 @@ export const fetchErrorLog = async () => {
 
 export const fetchPrices = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/prices`);
+    const response = await apiFetch(`${API_BASE_URL}/prices`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -201,7 +232,7 @@ export const fetchPayments = async (page = 1, limit = 20, search = '') => {
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
     }
-    const response = await fetch(url);
+    const response = await apiFetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -215,7 +246,7 @@ export const fetchPayments = async (page = 1, limit = 20, search = '') => {
 
 export const fetchResesPagos = async (page = 1, limit = 20) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/reses/pagos?page=${page}&limit=${limit}`);
+    const response = await apiFetch(`${API_BASE_URL}/reses/pagos?page=${page}&limit=${limit}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -230,7 +261,7 @@ export const fetchResesPagos = async (page = 1, limit = 20) => {
 
 export const linkData = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/link-data`, {
+    const response = await apiFetch(`${API_BASE_URL}/link-data`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -250,7 +281,7 @@ export const linkData = async () => {
 
 export const createPaymentPreference = async (paymentDetails) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/create-payment-preference`, {
+    const response = await apiFetch(`${API_BASE_URL}/create-payment-preference`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -271,7 +302,7 @@ export const createPaymentPreference = async (paymentDetails) => {
 
 export const simulatePayment = async (paymentDetails) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/simulate-payment`, {
+    const response = await apiFetch(`${API_BASE_URL}/simulate-payment`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -292,7 +323,7 @@ export const simulatePayment = async (paymentDetails) => {
 
 export const sendEmailAPI = async (emailData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/send-email`, {
+    const response = await apiFetch(`${API_BASE_URL}/send-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -313,7 +344,7 @@ export const sendEmailAPI = async (emailData) => {
 
 export const sendPaymentLink = async (paymentLinkData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/send-payment-link`, {
+    const response = await apiFetch(`${API_BASE_URL}/send-payment-link`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -333,7 +364,7 @@ export const sendPaymentLink = async (paymentLinkData) => {
 };
 
 export const registerManualPayment = async ({ inscription_id, tipo_establecimiento, email, notes }) => {
-  const response = await fetch(`${API_BASE_URL}/pagos/manual`, {
+  const response = await apiFetch(`${API_BASE_URL}/pagos/manual`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ inscription_id, tipo_establecimiento, email, notes }),
@@ -347,7 +378,7 @@ export const registerManualPayment = async ({ inscription_id, tipo_establecimien
 
 export const sendPermisoPaymentLink = async (paymentLinkData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/send-permiso-payment-link`, {
+    const response = await apiFetch(`${API_BASE_URL}/send-permiso-payment-link`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -368,7 +399,7 @@ export const sendPermisoPaymentLink = async (paymentLinkData) => {
 
 export const sendPermisoEmailAPI = async (permisoData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/send-permiso-email`, {
+    const response = await apiFetch(`${API_BASE_URL}/send-permiso-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -389,7 +420,7 @@ export const sendPermisoEmailAPI = async (permisoData) => {
 
 export const downloadPermisoMenorPdfAPI = async (permisoData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/permisos-menor/pdf`, {
+    const response = await apiFetch(`${API_BASE_URL}/permisos-menor/pdf`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -410,7 +441,7 @@ export const downloadPermisoMenorPdfAPI = async (permisoData) => {
 
 export const sendCredentialAPI = async (credentialData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/send-credential`, {
+    const response = await apiFetch(`${API_BASE_URL}/send-credential`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -431,7 +462,7 @@ export const sendCredentialAPI = async (credentialData) => {
 
 export const viewCredentialAPI = async (numero_inscripcion) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/view-credential/${numero_inscripcion}`);
+    const response = await apiFetch(`${API_BASE_URL}/view-credential/${numero_inscripcion}`);
     if (!response.ok) {
       const errorData = await response.text();
       throw new Error(errorData || `HTTP error! status: ${response.status}`);
@@ -446,7 +477,7 @@ export const viewCredentialAPI = async (numero_inscripcion) => {
 
 export const fetchCobrosEnviados = async (page = 1, limit = 20) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/cobros-enviados?page=${page}&limit=${limit}`);
+    const response = await apiFetch(`${API_BASE_URL}/cobros-enviados?page=${page}&limit=${limit}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -460,7 +491,7 @@ export const fetchCobrosEnviados = async (page = 1, limit = 20) => {
 
 export const fetchPermisoCobrosEnviados = async (page = 1, limit = 20) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/permiso-cobros-enviados?page=${page}&limit=${limit}`);
+    const response = await apiFetch(`${API_BASE_URL}/permiso-cobros-enviados?page=${page}&limit=${limit}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -474,7 +505,7 @@ export const fetchPermisoCobrosEnviados = async (page = 1, limit = 20) => {
 
 export const fetchTotalInscripciones = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/stats/total-inscripciones`);
+    const response = await apiFetch(`${API_BASE_URL}/stats/total-inscripciones`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -488,7 +519,7 @@ export const fetchTotalInscripciones = async () => {
 
 export const fetchPermisosMenorStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/stats/permisos-menor`);
+    const response = await apiFetch(`${API_BASE_URL}/stats/permisos-menor`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -502,7 +533,7 @@ export const fetchPermisosMenorStats = async () => {
 
 export const fetchPermisosStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/permisos/stats`);
+    const response = await apiFetch(`${API_BASE_URL}/permisos/stats`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -516,7 +547,7 @@ export const fetchPermisosStats = async () => {
 
 export const fetchRecaudacionesStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/stats/recaudaciones`);
+    const response = await apiFetch(`${API_BASE_URL}/stats/recaudaciones`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -530,7 +561,7 @@ export const fetchRecaudacionesStats = async () => {
 
 export const logSentItem = async (itemData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/log-sent-item`, {
+    const response = await apiFetch(`${API_BASE_URL}/log-sent-item`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -551,7 +582,7 @@ export const logSentItem = async (itemData) => {
 
 export const fetchSentItems = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/sent-items`);
+    const response = await apiFetch(`${API_BASE_URL}/sent-items`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -565,7 +596,7 @@ export const fetchSentItems = async () => {
 
 export const fetchLogs = async (page = 1, limit = 20) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/logs?page=${page}&limit=${limit}`);
+    const response = await apiFetch(`${API_BASE_URL}/logs?page=${page}&limit=${limit}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -583,7 +614,7 @@ export const fetchGuiasTraslados = async (page = 1, limit = 20, search = '') => 
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
     }
-    const response = await fetch(url);
+    const response = await apiFetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -596,12 +627,12 @@ export const fetchGuiasTraslados = async (page = 1, limit = 20, search = '') => 
 };
 
 export const getGuiaPdfUrl = (guiaId) => {
-  return `${API_BASE_URL}/guias-traslados/${guiaId}/pdf`;
+  return appendAccessToken(`${API_BASE_URL}/guias-traslados/${guiaId}/pdf`);
 };
 
 export const sendGuiaEmail = async (guiaId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/guias-traslados/${guiaId}/email`, {
+    const response = await apiFetch(`${API_BASE_URL}/guias-traslados/${guiaId}/email`, {
       method: 'POST'
     });
     if (!response.ok) {
@@ -618,7 +649,7 @@ export const sendGuiaEmail = async (guiaId) => {
 
 export const fetchGuiasStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/guias-traslados/stats`);
+    const response = await apiFetch(`${API_BASE_URL}/guias-traslados/stats`);
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
@@ -632,7 +663,7 @@ export const fetchGuiasStats = async () => {
 
 export const saveGuiaPago = async (pagoData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/guias-traslados/pago`, {
+    const response = await apiFetch(`${API_BASE_URL}/guias-traslados/pago`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(pagoData),
@@ -650,7 +681,7 @@ export const saveGuiaPago = async (pagoData) => {
 
 export const sendGuiaCobro = async (cobroData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/guias-traslados/cobro`, {
+    const response = await apiFetch(`${API_BASE_URL}/guias-traslados/cobro`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cobroData),
@@ -668,7 +699,7 @@ export const sendGuiaCobro = async (cobroData) => {
 
 export const fetchGuiasPagos = async (page = 1, limit = 20) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/guias-traslados/pagos?page=${page}&limit=${limit}`);
+    const response = await apiFetch(`${API_BASE_URL}/guias-traslados/pagos?page=${page}&limit=${limit}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -679,5 +710,5 @@ export const fetchGuiasPagos = async (page = 1, limit = 20) => {
   }
 };
 export const getResesPdfUrl = (docxId) => {
-  return `${API_BASE_URL}/reses/view-pdf/${docxId}`;
+  return appendAccessToken(`${API_BASE_URL}/reses/view-pdf/${docxId}`);
 };

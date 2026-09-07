@@ -3,33 +3,33 @@ import { useNavigate } from 'react-router-dom';
 
 export const AuthContext = createContext();
 
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+  ? 'https://caza2026-1.onrender.com/api'
+  : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api');
+
+const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
-    // Hardcoded credentials as per user request
-    const CREDENTIALS = {
-        'Karen': 'Karen321',
-        'Emanuel': 'Emanuel321',
-        'Nico': 'Nico321',
-        'algar': 'algarmariano',
-        'fauna1': 'fauna1nqn',
-        'cazamenor': 'cazamenor',
-        'Maga': 'Maga123'
+    const clearSession = () => {
+        setUser(null);
+        localStorage.removeItem('caza_user');
+        localStorage.removeItem('caza_token');
+        localStorage.removeItem('caza_login_time');
     };
 
-    const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
-
     useEffect(() => {
-        // Check for active session on mount
         const storedUser = localStorage.getItem('caza_user');
+        const storedToken = localStorage.getItem('caza_token');
         const storedLoginTime = localStorage.getItem('caza_login_time');
 
-        if (storedUser && storedLoginTime) {
+        if (storedUser && storedToken && storedLoginTime) {
             const now = Date.now();
-            if (now - parseInt(storedLoginTime) > SESSION_DURATION) {
-                logout(); // Session expired
+            if (now - parseInt(storedLoginTime, 10) > SESSION_DURATION) {
+                clearSession();
             } else {
                 setUser(storedUser);
             }
@@ -37,18 +37,30 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
-    const login = (username, password) => {
-        // Find user by case-insensitive key comparison
-        const userKey = Object.keys(CREDENTIALS).find(
-            key => key.toLowerCase() === username.toLowerCase()
-        );
+    const login = async (username, password) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
 
-        if (userKey && CREDENTIALS[userKey] === password) {
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                return {
+                    success: false,
+                    message: errorData.detail || 'Usuario o contraseña incorrectos',
+                };
+            }
+
+            const data = await response.json();
+            const userKey = data.user;
+
             setUser(userKey);
             localStorage.setItem('caza_user', userKey);
+            localStorage.setItem('caza_token', data.token);
             localStorage.setItem('caza_login_time', Date.now().toString());
 
-            // Redirect based on user
             if (userKey === 'algar') {
                 navigate('/algar-sa');
             } else if (userKey === 'fauna1') {
@@ -58,16 +70,16 @@ export const AuthProvider = ({ children }) => {
             } else {
                 navigate('/dashboard');
             }
+
             return { success: true };
-        } else {
-            return { success: false, message: 'Usuario o contraseña incorrectos' };
+        } catch (error) {
+            console.error('Error en login:', error);
+            return { success: false, message: 'No se pudo conectar con el servidor' };
         }
     };
 
     const logout = () => {
-        setUser(null);
-        localStorage.removeItem('caza_user');
-        localStorage.removeItem('caza_login_time');
+        clearSession();
         navigate('/login');
     };
 

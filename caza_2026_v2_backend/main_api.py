@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # v2.0.2 - Consolidación de Algar SA y Login Especial
-from fastapi import FastAPI, HTTPException, status, Query
+from fastapi import FastAPI, HTTPException, status, Query, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +17,15 @@ from sqlalchemy import select, func, desc
 from database import database, engine, metadata
 from models import logs, pagos, pagos_permisos, pagos_permisos_menor, cobros_enviados, permisos_enviados, sent_items, reses_details, guias_details
 import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
+from api_auth import (
+    APIAuthMiddleware,
+    authenticate_user,
+    create_access_token,
+    decode_access_token,
+    get_allowed_origins,
+    sanitize_external_list,
+    JWT_EXPIRE_HOURS,
+)
 import math # Needed for ceil
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -195,15 +204,12 @@ async def shutdown():
     await log_activity('INFO', 'shutdown', 'Aplicación cerrándose.')
     await database.disconnect()
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 # --- CORS Configuration ---
-origins = [
-    "http://localhost:3000", "http://127.0.0.1:3000",
-    "http://localhost:3001", "http://127.0.0.1:3001",
-    "http://localhost:3005", "http://127.0.0.1:3005",
-    "https://caza2026-frontend.onrender.com",
-    "http://localhost:5174",                             # Fiscalizador — dev local
-    "https://fiscalizador-caza-2026.onrender.com",      # Fiscalizador — producción
-]
+origins = get_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -211,6 +217,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(APIAuthMiddleware)
 
 # --- Routers adicionales ---
 app.include_router(fiscalizador.router)
@@ -229,6 +237,30 @@ async def add_no_cache_header(request, call_next):
     return response
 
 # --- Endpoints ---
+
+@app.post("/api/auth/login")
+async def login(credentials: LoginRequest):
+    user = authenticate_user(credentials.username, credentials.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    token = create_access_token(user)
+    return {
+        "token": token,
+        "user": user,
+        "expires_in": JWT_EXPIRE_HOURS * 3600,
+    }
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "", 1).strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    return {"user": payload.get("sub"), "scope": payload.get("scope")}
+
 
 @app.get("/health")
 async def health_check():
@@ -540,7 +572,7 @@ async def create_inscripcion(inscripcion: InscriptionCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al crear inscripción: {e}")
 
 @app.get("/api/permisos", response_model=Dict[str, Any])
-async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
+async def get_permisos(request: Request, page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_permisos_request', f'Solicitud de permisos - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         # Leer permisos desde Google Sheets o DB
@@ -650,6 +682,9 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
             else:
                 permiso['sent_statuses'] = []
 
+        if getattr(request.state, "auth_scope", None) == "external_read":
+            paginated_data = sanitize_external_list(paginated_data)
+
         return {
             "data": paginated_data,
             "total_records": total_records,
@@ -663,7 +698,7 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener permisos: {e}")
 
 @app.get("/api/permisos-menor", response_model=Dict[str, Any])
-async def get_permisos_menor(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
+async def get_permisos_menor(request: Request, page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_permisos_menor_request', f'Solicitud de permisos menor - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
@@ -728,6 +763,9 @@ async def get_permisos_menor(page: int = Query(1, ge=1), limit: int = Query(10, 
                 permiso['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
             else:
                 permiso['sent_statuses'] = []
+
+        if getattr(request.state, "auth_scope", None) == "external_read":
+            paginated_data = sanitize_external_list(paginated_data)
 
         return {
             "data": paginated_data,
