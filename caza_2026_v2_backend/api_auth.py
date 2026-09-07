@@ -37,11 +37,15 @@ PUBLIC_API_PREFIXES = (
     "/api/view-credential/",
 )
 
-# Rutas de lectura para apps externas (permisos, fiscalizador) con X-API-Key o ?api_key=
+# Rutas de lectura para apps externas (permisos, fiscalizador, tablero Fauna) con X-API-Key o ?api_key=
 EXTERNAL_READ_PREFIXES = (
     "/api/permisos",
     "/api/permisos-menor",
     "/api/fiscalizador/",
+    "/api/stats/",
+    "/api/inscripciones",
+    "/api/reses/stats",
+    "/api/guias-traslados/stats",
 )
 
 # GETs que el navegador abre sin header Authorization (token por query param)
