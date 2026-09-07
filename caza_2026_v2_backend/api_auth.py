@@ -132,8 +132,6 @@ def _is_public_path(path: str) -> bool:
 def _is_external_read_path(path: str, method: str) -> bool:
     if method != "GET":
         return False
-    if path == "/api/permisos/stats" or path == "/api/stats/permisos-menor":
-        return False
     return any(path.startswith(prefix) for prefix in EXTERNAL_READ_PREFIXES)
 
 
