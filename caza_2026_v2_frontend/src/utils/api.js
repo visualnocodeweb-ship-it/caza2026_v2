@@ -26,7 +26,7 @@ function getAuthHeaders(extraHeaders = {}) {
 
 async function apiFetch(url, options = {}) {
   const headers = getAuthHeaders(options.headers || {});
-  const response = await apiFetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers });
   if (response.status === 401) {
     localStorage.removeItem('caza_token');
     localStorage.removeItem('caza_user');
