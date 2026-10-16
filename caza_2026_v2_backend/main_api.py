@@ -27,6 +27,7 @@ from api_auth import (
     JWT_EXPIRE_HOURS,
 )
 import math # Needed for ceil
+from urllib.parse import urlsplit, urlunsplit
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from fpdf import FPDF
@@ -938,6 +939,68 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
         await log_activity('ERROR', 'get_guias_traslados_failed', f"Error al obtener guías de traslados: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# El formulario guarda las fotos en WordPress (cazaneuquen). El dominio
+# cazaypesca ahora es la web nueva y responde HTML en esas mismas rutas.
+_GUIA_IMAGE_HOST_REMAP = {
+    "cazaypesca.neuquen.gob.ar": "cazaneuquen.neuquen.gob.ar",
+}
+
+def _guia_image_urls(raw_value) -> List[str]:
+    if raw_value is None:
+        return []
+    text = str(raw_value).replace("\n", " ").replace(",", " ").strip()
+    if not text or text.lower() == "nan":
+        return []
+    return [part.strip() for part in text.split() if part.strip().lower().startswith("http")]
+
+def _remap_guia_image_url(url: str) -> str:
+    parts = urlsplit(url.strip())
+    mapped_host = _GUIA_IMAGE_HOST_REMAP.get(parts.netloc.lower())
+    if not mapped_host:
+        return url.strip()
+    return urlunsplit((parts.scheme or "https", mapped_host, parts.path, parts.query, parts.fragment))
+
+def _fetch_guia_image(url: str) -> BytesIO:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
+    candidates = []
+    for candidate in (_remap_guia_image_url(url), url.strip()):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    errors = []
+    for candidate in candidates:
+        try:
+            response = requests.get(candidate, timeout=20, headers=headers)
+            body = response.content or b""
+            content_type = (response.headers.get("content-type") or "").lower()
+            looks_like_html = (
+                "text/html" in content_type
+                or body.lstrip()[:15].lower().startswith(b"<!doctype")
+                or body.lstrip()[:5].lower().startswith(b"<html")
+            )
+            if response.status_code != 200 or looks_like_html:
+                errors.append(f"{candidate} ({response.status_code}, {content_type or 'sin tipo'})")
+                continue
+
+            img = Image.open(BytesIO(body))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            max_width = 1000
+            if img.width > max_width:
+                w_percent = max_width / float(img.width)
+                h_size = int(float(img.height) * w_percent)
+                img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
+            optimized = BytesIO()
+            img.save(optimized, format="JPEG", quality=85)
+            optimized.seek(0)
+            return optimized
+        except Exception as e:
+            errors.append(f"{candidate} ({e})")
+
+    raise RuntimeError("No se pudo descargar la foto: " + " | ".join(errors))
+
 async def generate_guia_completa_pdf(guia_id: str):
     try:
         await log_activity('INFO', 'pdf_gen_start', f"Iniciando generación de PDF para guía: {guia_id}")
@@ -1042,37 +1105,22 @@ async def generate_guia_completa_pdf(guia_id: str):
                 pdf.ln(4)
 
             # Registro Fotográfico
-            img_url = data1.get('Imagen')
-            if img_url:
-                try:
-                    # Usamos 15s de timeout para permitir descargas lentas pero no infinitas
-                    response = requests.get(img_url, timeout=15)
-                    if response.status_code == 200:
-                        # Abrir imagen con Pillow para optimizarla
-                        img = Image.open(BytesIO(response.content))
-                        
-                        # Asegurar compatibilidad (convertir a RGB)
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        
-                        # Redimensionar si es muy grande (max 1000px ancho) para liberar memoria y rapidez
-                        max_width = 1000
-                        if img.width > max_width:
-                            w_percent = (max_width / float(img.width))
-                            h_size = int((float(img.height) * float(w_percent)))
-                            img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
-                        
-                        # Guardar imagen optimizada en un buffer
-                        img_optimized = BytesIO()
-                        img.save(img_optimized, format='JPEG', quality=85)
-                        img_optimized.seek(0)
-
-                        pdf.set_font("helvetica", "B", 10)
-                        pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
-                        pdf.image(img_optimized, w=60) 
+            image_urls = _guia_image_urls(data1.get('Imagen'))
+            if image_urls:
+                placed_header = False
+                for img_url in image_urls:
+                    try:
+                        img_optimized = _fetch_guia_image(img_url)
+                        if not placed_header:
+                            if pdf.get_y() > 200:
+                                pdf.add_page()
+                            pdf.set_font("helvetica", "B", 10)
+                            pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
+                            placed_header = True
+                        pdf.image(img_optimized, w=60)
                         pdf.ln(5)
-                except Exception as e:
-                    await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
+                    except Exception as e:
+                        await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
 
             # Firma
             firma_path = os.path.join(assets_path, "firma.png")

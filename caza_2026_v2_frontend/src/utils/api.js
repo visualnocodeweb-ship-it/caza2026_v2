@@ -41,10 +41,16 @@ async function apiFetch(url, options = {}) {
 
 export const getImageUrl = (url) => {
   if (!url) return '';
-  if (url.toLowerCase().endsWith('.heic')) {
-    return appendAccessToken(`${API_BASE_URL}/convert-heic?url=${encodeURIComponent(url)}`);
+  // Las fotos de las guías quedaron guardadas con el dominio viejo.
+  // Ese dominio ahora es la web nueva y no sirve los archivos.
+  let resolved = url.replace(
+    /https?:\/\/cazaypesca\.neuquen\.gob\.ar/g,
+    'https://cazaneuquen.neuquen.gob.ar'
+  );
+  if (resolved.toLowerCase().endsWith('.heic')) {
+    return appendAccessToken(`${API_BASE_URL}/convert-heic?url=${encodeURIComponent(resolved)}`);
   }
-  return url;
+  return resolved;
 };
 
 export const fetchInscripciones = async (page = 1, limit = 20, search = '') => {
