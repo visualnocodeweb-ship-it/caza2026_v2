@@ -8,10 +8,10 @@ const Login = () => {
     const [error, setError] = useState(null);
     const { login } = useContext(AuthContext);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
-        const result = login(username, password);
+        const result = await login(username, password);
         if (!result.success) {
             setError(result.message);
         }

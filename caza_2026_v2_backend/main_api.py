@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # v2.0.2 - Consolidación de Algar SA y Login Especial
-from fastapi import FastAPI, HTTPException, status, Query
+from fastapi import FastAPI, HTTPException, status, Query, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,17 @@ from sqlalchemy import select, func, desc
 from database import database, engine, metadata
 from models import logs, pagos, pagos_permisos, pagos_permisos_menor, cobros_enviados, permisos_enviados, sent_items, reses_details, guias_details
 import sheets_services, email_services, drive_services, mercadopago_services # Importar los servicios
+from api_auth import (
+    APIAuthMiddleware,
+    authenticate_user,
+    create_access_token,
+    decode_access_token,
+    get_allowed_origins,
+    sanitize_external_list,
+    JWT_EXPIRE_HOURS,
+)
 import math # Needed for ceil
+from urllib.parse import urlsplit, urlunsplit
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from fpdf import FPDF
@@ -196,15 +206,12 @@ async def shutdown():
     await log_activity('INFO', 'shutdown', 'Aplicación cerrándose.')
     await database.disconnect()
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 # --- CORS Configuration ---
-origins = [
-    "http://localhost:3000", "http://127.0.0.1:3000",
-    "http://localhost:3001", "http://127.0.0.1:3001",
-    "http://localhost:3005", "http://127.0.0.1:3005",
-    "https://caza2026-frontend.onrender.com",
-    "http://localhost:5174",                             # Fiscalizador — dev local
-    "https://fiscalizador-caza-2026.onrender.com",      # Fiscalizador — producción
-]
+origins = get_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -212,6 +219,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(APIAuthMiddleware)
 
 # --- Routers adicionales ---
 app.include_router(fiscalizador.router)
@@ -230,6 +239,30 @@ async def add_no_cache_header(request, call_next):
     return response
 
 # --- Endpoints ---
+
+@app.post("/api/auth/login")
+async def login(credentials: LoginRequest):
+    user = authenticate_user(credentials.username, credentials.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    token = create_access_token(user)
+    return {
+        "token": token,
+        "user": user,
+        "expires_in": JWT_EXPIRE_HOURS * 3600,
+    }
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "", 1).strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    return {"user": payload.get("sub"), "scope": payload.get("scope")}
+
 
 @app.get("/health")
 async def health_check():
@@ -541,7 +574,7 @@ async def create_inscripcion(inscripcion: InscriptionCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al crear inscripción: {e}")
 
 @app.get("/api/permisos", response_model=Dict[str, Any])
-async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
+async def get_permisos(request: Request, page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_permisos_request', f'Solicitud de permisos - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         # Leer permisos desde Google Sheets o DB
@@ -651,6 +684,9 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
             else:
                 permiso['sent_statuses'] = []
 
+        if getattr(request.state, "auth_scope", None) == "external_read":
+            paginated_data = sanitize_external_list(paginated_data)
+
         return {
             "data": paginated_data,
             "total_records": total_records,
@@ -664,7 +700,7 @@ async def get_permisos(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al obtener permisos: {e}")
 
 @app.get("/api/permisos-menor", response_model=Dict[str, Any])
-async def get_permisos_menor(page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
+async def get_permisos_menor(request: Request, page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=1000), search: Optional[str] = Query(None)):
     await log_activity('INFO', 'get_permisos_menor_request', f'Solicitud de permisos menor - Página: {page}, Límite: {limit}, Búsqueda: {search}')
     try:
         sheet_id = "1Hl99DUx5maPEHkC5JNJqq2SZLa8UgVQBJbeia5jk1VI"
@@ -729,6 +765,9 @@ async def get_permisos_menor(page: int = Query(1, ge=1), limit: int = Query(10, 
                 permiso['sent_statuses'] = list(set([r['sent_type'] for r in sent_results]))
             else:
                 permiso['sent_statuses'] = []
+
+        if getattr(request.state, "auth_scope", None) == "external_read":
+            paginated_data = sanitize_external_list(paginated_data)
 
         return {
             "data": paginated_data,
@@ -901,42 +940,71 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
         await log_activity('ERROR', 'get_guias_traslados_failed', f"Error al obtener guías de traslados: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# El formulario guarda las fotos en WordPress (cazaneuquen). El dominio
+# cazaypesca ahora es la web nueva y responde HTML en esas mismas rutas.
+_GUIA_IMAGE_HOST_REMAP = {
+    "cazaypesca.neuquen.gob.ar": "cazaneuquen.neuquen.gob.ar",
+}
 _IMAGE_URL_RE = re.compile(r'https?://[^\s,<>\]\)\"\']+', re.IGNORECASE)
 
-def _imagen_urls(value):
-    """Enlaces de la foto cargada en la primera parte (la misma de la vista previa)."""
-    if value is None:
+def _guia_image_urls(raw_value) -> List[str]:
+    if raw_value is None:
         return []
-    text = str(value).strip().replace('\\/', '/')
-    if not text or text.lower() in ('nan', 'none', 'n/a'):
+    text = str(raw_value).replace("\\/", "/").strip()
+    if not text or text.lower() in ("nan", "none", "n/a"):
         return []
-    urls = [url.rstrip('.,;') for url in _IMAGE_URL_RE.findall(text)]
-    return urls or ([text] if text.lower().startswith('http') else [])
+    urls = [url.rstrip(".,;\"'") for url in _IMAGE_URL_RE.findall(text)]
+    if urls:
+        return urls
+    return [part.strip() for part in text.replace("\n", " ").replace(",", " ").split() if part.strip().lower().startswith("http")]
 
-def _download_form_image(url):
-    # El mismo archivo que el navegador muestra en el tablero. Sin un User-Agent
-    # de navegador el sitio del formulario responde 403 y la foto no entra al PDF.
-    response = requests.get(
-        url,
-        timeout=20,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Referer": "https://cazaneuquen.neuquen.gob.ar/",
-            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-        },
-    )
-    response.raise_for_status()
-    return response.content
+def _remap_guia_image_url(url: str) -> str:
+    parts = urlsplit(url.strip())
+    mapped_host = _GUIA_IMAGE_HOST_REMAP.get(parts.netloc.lower())
+    if not mapped_host:
+        return url.strip()
+    return urlunsplit((parts.scheme or "https", mapped_host, parts.path, parts.query, parts.fragment))
 
-def _insert_preview_image(pdf, content):
-    img = ImageOps.exif_transpose(Image.open(BytesIO(content)))
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
-    max_width = 1400
-    if img.width > max_width:
-        scale = max_width / float(img.width)
-        img = img.resize((max_width, max(1, int(img.height * scale))), Image.Resampling.LANCZOS)
+def _fetch_guia_image(url: str):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Referer": "https://cazaneuquen.neuquen.gob.ar/",
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+    }
+    candidates = []
+    for candidate in (_remap_guia_image_url(url), url.strip()):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
 
+    errors = []
+    for candidate in candidates:
+        try:
+            response = requests.get(candidate, timeout=20, headers=headers)
+            body = response.content or b""
+            content_type = (response.headers.get("content-type") or "").lower()
+            looks_like_html = (
+                "text/html" in content_type
+                or body.lstrip()[:15].lower().startswith(b"<!doctype")
+                or body.lstrip()[:5].lower().startswith(b"<html")
+            )
+            if response.status_code != 200 or looks_like_html:
+                errors.append(f"{candidate} ({response.status_code}, {content_type or 'sin tipo'})")
+                continue
+
+            img = ImageOps.exif_transpose(Image.open(BytesIO(body)))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            max_width = 1400
+            if img.width > max_width:
+                scale = max_width / float(img.width)
+                img = img.resize((max_width, max(1, int(img.height * scale))), Image.Resampling.LANCZOS)
+            return img
+        except Exception as e:
+            errors.append(f"{candidate} ({e})")
+
+    raise RuntimeError("No se pudo descargar la foto: " + " | ".join(errors))
+
+def _insert_preview_image(pdf, img):
     pdf.add_page()
     pdf.set_font("helvetica", "B", 11)
     pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
@@ -1060,10 +1128,10 @@ async def generate_guia_completa_pdf(guia_id: str):
                 pdf.image(firma_path, w=40)
 
             # La foto de la primera parte (la misma de la vista previa del tablero)
-            imagen_urls = _imagen_urls(data1.get('Imagen') or data1.get('imagen'))
+            imagen_urls = _guia_image_urls(data1.get('Imagen') or data1.get('imagen'))
             for img_url in imagen_urls:
                 try:
-                    _insert_preview_image(pdf, _download_form_image(img_url))
+                    _insert_preview_image(pdf, _fetch_guia_image(img_url))
                 except Exception as e:
                     await log_activity('ERROR', 'pdf_gen_img_error', f"Error al insertar la imagen de la guía: {e}")
 

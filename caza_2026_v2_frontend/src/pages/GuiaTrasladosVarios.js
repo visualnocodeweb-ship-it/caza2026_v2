@@ -102,7 +102,7 @@ const GuiaTrasladosVarios = () => {
                     Primera parte
                 </a>
                 <a
-                    href="https://cazaypesca.neuquen.gob.ar/?ff_landing=22"
+                    href="https://cazaneuquen.neuquen.gob.ar/?ff_landing=22"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="action-button btn-success"
@@ -171,7 +171,7 @@ const GuiaTrasladosVarios = () => {
                                             Copiar ID
                                         </button>
                                         <a
-                                            href="https://cazaypesca.neuquen.gob.ar/?ff_landing=22"
+                                            href="https://cazaneuquen.neuquen.gob.ar/?ff_landing=22"
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="action-button btn-success"
