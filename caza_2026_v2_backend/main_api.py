@@ -1004,20 +1004,24 @@ def _fetch_guia_image(url: str):
 
     raise RuntimeError("No se pudo descargar la foto: " + " | ".join(errors))
 
-def _insert_preview_image(pdf, img):
-    pdf.add_page()
-    pdf.set_font("helvetica", "B", 11)
-    pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
-    pdf.ln(2)
-
-    max_w = pdf.epw
-    max_h = pdf.h - pdf.get_y() - pdf.b_margin
+def _insert_preview_image(pdf, img, reserve_below=0):
+    # Tamaño moderado: se lee la cabeza y queda lugar para la firma en la misma hoja.
+    max_w = 78
+    max_h = 58
     width = max_w
     height = width * (img.height / float(img.width))
     if height > max_h:
         height = max_h
         width = height * (img.width / float(img.height))
+
+    block_h = 10 + height + reserve_below
+    if pdf.get_y() + block_h > pdf.h - pdf.b_margin:
+        pdf.add_page()
+
+    pdf.set_font("helvetica", "B", 11)
+    pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
     pdf.image(img, w=width, h=height)
+    pdf.ln(3)
 
 async def generate_guia_completa_pdf(guia_id: str):
     try:
@@ -1122,18 +1126,23 @@ async def generate_guia_completa_pdf(guia_id: str):
                 
                 pdf.ln(4)
 
-            # Firma
+            # Foto de la primera parte y, debajo, la firma en la misma hoja
             firma_path = os.path.join(assets_path, "firma.png")
-            if os.path.exists(firma_path):
-                pdf.image(firma_path, w=40)
-
-            # La foto de la primera parte (la misma de la vista previa del tablero)
+            firma_h = 28 if os.path.exists(firma_path) else 0
             imagen_urls = _guia_image_urls(data1.get('Imagen') or data1.get('imagen'))
-            for img_url in imagen_urls:
+            for index, img_url in enumerate(imagen_urls):
                 try:
-                    _insert_preview_image(pdf, _fetch_guia_image(img_url))
+                    is_last = index == len(imagen_urls) - 1
+                    _insert_preview_image(
+                        pdf,
+                        _fetch_guia_image(img_url),
+                        reserve_below=firma_h if is_last else 0,
+                    )
                 except Exception as e:
                     await log_activity('ERROR', 'pdf_gen_img_error', f"Error al insertar la imagen de la guía: {e}")
+
+            if os.path.exists(firma_path):
+                pdf.image(firma_path, w=36)
 
             pdf_bytes = bytes(pdf.output())
             await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id} (fotos={len(imagen_urls)})")
