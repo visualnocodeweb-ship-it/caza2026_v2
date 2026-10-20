@@ -23,10 +23,11 @@ from typing import Optional, List, Dict, Any
 from fpdf import FPDF
 import requests
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 register_heif_opener()
 import unicodedata
+import re
 
 # --- Helpers ---
 def safe_str_id(val) -> Optional[str]:
@@ -900,6 +901,56 @@ async def get_guias_traslados(page: int = Query(1, ge=1), limit: int = Query(10,
         await log_activity('ERROR', 'get_guias_traslados_failed', f"Error al obtener guías de traslados: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+_IMAGE_URL_RE = re.compile(r'https?://[^\s,<>\]\)\"\']+', re.IGNORECASE)
+
+def _imagen_urls(value):
+    """Enlaces de la foto cargada en la primera parte (la misma de la vista previa)."""
+    if value is None:
+        return []
+    text = str(value).strip().replace('\\/', '/')
+    if not text or text.lower() in ('nan', 'none', 'n/a'):
+        return []
+    urls = [url.rstrip('.,;') for url in _IMAGE_URL_RE.findall(text)]
+    return urls or ([text] if text.lower().startswith('http') else [])
+
+def _download_form_image(url):
+    # El mismo archivo que el navegador muestra en el tablero. Sin un User-Agent
+    # de navegador el sitio del formulario responde 403 y la foto no entra al PDF.
+    response = requests.get(
+        url,
+        timeout=20,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Referer": "https://cazaneuquen.neuquen.gob.ar/",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        },
+    )
+    response.raise_for_status()
+    return response.content
+
+def _insert_preview_image(pdf, content):
+    img = ImageOps.exif_transpose(Image.open(BytesIO(content)))
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    max_width = 1400
+    if img.width > max_width:
+        scale = max_width / float(img.width)
+        img = img.resize((max_width, max(1, int(img.height * scale))), Image.Resampling.LANCZOS)
+
+    pdf.add_page()
+    pdf.set_font("helvetica", "B", 11)
+    pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
+    pdf.ln(2)
+
+    max_w = pdf.epw
+    max_h = pdf.h - pdf.get_y() - pdf.b_margin
+    width = max_w
+    height = width * (img.height / float(img.width))
+    if height > max_h:
+        height = max_h
+        width = height * (img.width / float(img.height))
+    pdf.image(img, w=width, h=height)
+
 async def generate_guia_completa_pdf(guia_id: str):
     try:
         await log_activity('INFO', 'pdf_gen_start', f"Iniciando generación de PDF para guía: {guia_id}")
@@ -1003,46 +1054,21 @@ async def generate_guia_completa_pdf(guia_id: str):
                 
                 pdf.ln(4)
 
-            # Registro Fotográfico
-            img_url = data1.get('Imagen')
-            if img_url:
-                try:
-                    # Usamos 15s de timeout para permitir descargas lentas pero no infinitas
-                    response = requests.get(img_url, timeout=15)
-                    if response.status_code == 200:
-                        # Abrir imagen con Pillow para optimizarla
-                        img = Image.open(BytesIO(response.content))
-                        
-                        # Asegurar compatibilidad (convertir a RGB)
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        
-                        # Redimensionar si es muy grande (max 1000px ancho) para liberar memoria y rapidez
-                        max_width = 1000
-                        if img.width > max_width:
-                            w_percent = (max_width / float(img.width))
-                            h_size = int((float(img.height) * float(w_percent)))
-                            img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
-                        
-                        # Guardar imagen optimizada en un buffer
-                        img_optimized = BytesIO()
-                        img.save(img_optimized, format='JPEG', quality=85)
-                        img_optimized.seek(0)
-
-                        pdf.set_font("helvetica", "B", 10)
-                        pdf.cell(0, 8, "REGISTRO FOTOGRÁFICO", ln=True)
-                        pdf.image(img_optimized, w=60) 
-                        pdf.ln(5)
-                except Exception as e:
-                    await log_activity('ERROR', 'pdf_gen_img_error', f"Error al procesar imagen: {e}")
-
             # Firma
             firma_path = os.path.join(assets_path, "firma.png")
             if os.path.exists(firma_path):
-                pdf.image(firma_path, w=40) 
+                pdf.image(firma_path, w=40)
+
+            # La foto de la primera parte (la misma de la vista previa del tablero)
+            imagen_urls = _imagen_urls(data1.get('Imagen') or data1.get('imagen'))
+            for img_url in imagen_urls:
+                try:
+                    _insert_preview_image(pdf, _download_form_image(img_url))
+                except Exception as e:
+                    await log_activity('ERROR', 'pdf_gen_img_error', f"Error al insertar la imagen de la guía: {e}")
 
             pdf_bytes = bytes(pdf.output())
-            await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id}")
+            await log_activity('INFO', 'pdf_gen_success', f"PDF generado con éxito para {guia_id} (fotos={len(imagen_urls)})")
             # Retornamos los bytes y el nombre para el archivo
             return pdf_bytes, data1.get('Nombre', 'Sin_Nombre'), None
             
